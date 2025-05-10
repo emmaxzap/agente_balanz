@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmar Actualización</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        .plan-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            height: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .plan-header {
+            padding: 20px;
+            color: white;
+        }
+        .plan-price {
+            font-size: 1.8rem;
+            font-weight: bold;
+        }
+        .plan-period {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        .comparison-table {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .comparison-header {
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .comparison-row {
+            border-bottom: 1px solid #dee2e6;
+        }
+        .comparison-row:last-child {
+            border-bottom: none;
+        }
+        .bg-gradient-primary {
+            background: linear-gradient(45deg, #3a8bfe, #1259c3);
+        }
+        .bg-gradient-success {
+            background: linear-gradient(45deg, #28a745, #20c997);
+        }
+        .bg-highlight {
+            background-color: #f8f9fa;
+        }
+        .feature-list li {
+            margin-bottom: 8px;
+        }
+        .feature-list i {
+            margin-right: 8px;
+            color: #198754;
+        }
+        .divider {
+            display: flex;
+            align-items: center;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .divider::before {
+            margin-right: 10px;
+        }
+        .divider::after {
+            margin-left: 10px;
+        }
+        .pricing-detail {
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">Sistema de Créditos</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard.index') }}">Panel</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('payments.planes') }}">Planes</a>
+                    </li>
+                    {% if active_plan and not session.is_team_member %}
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('upgrade.index') }}">
+                            <i class="bi bi-arrow-up-circle"></i> Actualizar Plan
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('payments.recargar_creditos') }}">Recargar Créditos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('team.index') }}">Equipo</a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.logout') }}">Cerrar Sesión</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3>Confirmar Actualización de Plan</h3>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <h5><i class="bi bi-exclamation-triangle"></i> Revisa los detalles antes de continuar</h5>
+                    <p>Estás a punto de actualizar tu plan actual a un nuevo plan. Por favor, verifica los detalles de la actualización.</p>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-lg-6">
+                        <div class="card plan-card mb-4">
+                            <div class="plan-header bg-primary text-white">
+                                <h4><i class="bi bi-box-arrow-left"></i> Tu Plan Actual</h4>
+                                <div class="plan-price">
+                                    ${{ current_plan.price_amount }}
+                                    <span class="plan-period">{% if current_plan.period_months > 1 %}/ {{ current_plan.period_months }} meses{% else %}/ mes{% endif %}</span>
+                                </div>
+                                <p>{{ current_plan.plan_name }}</p>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Categoría:</strong> {{ current_plan.category_name }}</p>
+                                <p><strong>Nivel:</strong> {{ current_plan.level_name }}</p>
+                                <p><strong>Créditos incluidos:</strong> {{ current_plan.credit_amount }}</p>
+                                <p><strong>Usuarios máximos:</strong> {{ current_plan.max_users }}</p>
+                                <p><strong>Válido hasta:</strong> {{ current_plan.end_date.strftime('%d/%m/%Y') }}</p>
+                                
+                                <div class="mt-3">
+                                    <h6>Características:</h6>
+                                    <div>{{ current_plan.features_included|safe }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card plan-card">
+                            <div class="plan-header bg-success text-white">
+                                <h4><i class="bi bi-box-arrow-in-right"></i> Tu Nuevo Plan</h4>
+                                <div class="plan-price">
+                                    ${{ new_plan.price_amount }}
+                                    <span class="plan-period">{% if new_plan.period_months > 1 %}/ {{ new_plan.period_months }} meses{% else %}/ mes{% endif %}</span>
+                                </div>
+                                <p>{{ new_plan.plan_name }}</p>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Categoría:</strong> {{ new_plan.category_name }}</p>
+                                <p><strong>Nivel:</strong> {{ new_plan.level_name }}</p>
+                                <p><strong>Créditos incluidos:</strong> {{ new_plan.credit_amount }}</p>
+                                <p><strong>Usuarios máximos:</strong> {{ new_plan.max_users }}</p>
+                                <p><strong>Duración:</strong> {% if new_plan.period_months > 1 %}{{ new_plan.period_months }} meses{% else %}1 mes{% endif %}</p>
+                                
+                                <div class="mt-3">
+                                    <h6>Características:</h6>
+                                    <div>{{ new_plan.features_included|safe }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="divider">
+                    <h5>Detalles de la Actualización</h5>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-lg-6 offset-lg-3">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0">Resumen de Costos</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="pricing-detail">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Precio del nuevo plan:</span>
+                                        <span class="text-end">${{ "%.2f"|format(new_plan.price_amount) }}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="pricing-detail">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Descuento por tiempo restante:</span>
+                                        <span class="text-end text-success">-${{ "%.2f"|format(upgrade_info.prorated_discount) }}</span>
+                                    </div>
+                                    <small class="text-muted">
+                                        Basado en {{ upgrade_info.days_remaining }} días restantes en tu plan actual
+                                    </small>
+                                </div>
+                                
+                                <div class="pricing-detail bg-light">
+                                    <div class="d-flex justify-content-between fw-bold">
+                                        <span>Costo total de la actualización:</span>
+                                        <span class="text-end">
+                                            {% if upgrade_info.upgrade_cost > 0 %}
+                                                ${{ "%.2f"|format(upgrade_info.upgrade_cost) }}
+                                            {% else %}
+                                                <span class="text-success">¡GRATIS!</span>
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <p class="fw-bold">Beneficios de la actualización:</p>
+                                    <ul class="feature-list">
+                                        {% if new_plan.max_users > current_plan.max_users %}
+                                        <li><i class="bi bi-check-circle-fill"></i> {{ new_plan.max_users - current_plan.max_users }} usuarios adicionales para tu equipo</li>
+                                        {% endif %}
+                                        
+                                        {% if new_plan.credit_amount > current_plan.credit_amount %}
+                                        <li><i class="bi bi-check-circle-fill"></i> {{ new_plan.credit_amount - current_plan.credit_amount }} créditos adicionales</li>
+                                        {% endif %}
+                                        
+                                        <li><i class="bi bi-check-circle-fill"></i> Nivel de servicio mejorado</li>
+                                        <li><i class="bi bi-check-circle-fill"></i> Conservarás tus créditos actuales</li>
+                                    </ul>
+                                </div>
+                                
+                                <div class="mt-4">
+                                    <form action="{{ url_for('upgrade.process_upgrade', plan_id=new_plan.plan_id) }}" method="post">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-success btn-lg">
+                                                {% if upgrade_info.upgrade_cost > 0 %}
+                                                    Confirmar y Pagar ${{ "%.2f"|format(upgrade_info.upgrade_cost) }}
+                                                {% else %}
+                                                    Confirmar Actualización Gratuita
+                                                {% endif %}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('upgrade.index') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Volver a los planes
+                    </a>
+                    <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-house"></i> Volver al Panel
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

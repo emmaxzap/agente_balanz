@@ -1,0 +1,222 @@
+<!-- templates/check_team_status.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container my-5">
+    <h1 class="mb-4">Diagnóstico de Membresía de Equipo</h1>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Información de Sesión</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <tr>
+                            <th>Usuario ID:</th>
+                            <td>{{ session_info.user_id }}</td>
+                        </tr>
+                        <tr>
+                            <th>Email:</th>
+                            <td>{{ session_info.email }}</td>
+                        </tr>
+                        <tr>
+                            <th>¿Es miembro de equipo?</th>
+                            <td>
+                                {% if session_info.is_team_member %}
+                                <span class="badge bg-success">Sí</span>
+                                {% else %}
+                                <span class="badge bg-danger">No</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if session_info.is_team_member %}
+                        <tr>
+                            <th>ID del propietario:</th>
+                            <td>{{ session_info.team_owner_id }}</td>
+                        </tr>
+                        <tr>
+                            <th>Rol en equipo:</th>
+                            <td>{{ session_info.team_role }}</td>
+                        </tr>
+                        <tr>
+                            <th>Nombre del propietario:</th>
+                            <td>{{ session_info.team_owner_name }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Información real de Base de Datos</h5>
+                </div>
+                <div class="card-body">
+                    {% if team_info %}
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle-fill"></i> Información de equipo confirmada en la base de datos.
+                    </div>
+                    
+                    <table class="table">
+                        <tr>
+                            <th>ID de miembro:</th>
+                            <td>{{ team_info.member_id }}</td>
+                        </tr>
+                        <tr>
+                            <th>ID del propietario:</th>
+                            <td>{{ team_info.owner_id }}</td>
+                        </tr>
+                        <tr>
+                            <th>Rol asignado:</th>
+                            <td>{{ team_info.role }}</td>
+                        </tr>
+                    </table>
+                    
+                    <div class="alert alert-info">
+                        {% if session_info.is_team_member and session_info.team_owner_id == team_info.owner_id %}
+                        <i class="bi bi-check-circle-fill"></i> La información de sesión coincide con la de la base de datos.
+                        {% else %}
+                        <i class="bi bi-exclamation-triangle-fill"></i> <strong>¡Atención!</strong> La información de sesión no coincide con la base de datos.
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle-fill"></i> No se encontró información de membresía en la base de datos.
+                    </div>
+                    {% endif %}
+                    
+                    <div class="mt-4 text-center">
+                        <a href="{{ url_for('dashboard.repair_team_membership') }}" class="btn btn-primary btn-lg">
+                            <i class="bi bi-tools"></i> Reparar Membresía Automáticamente
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Acciones disponibles</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-primary">
+                            <i class="bi bi-house-door"></i> Volver al Dashboard
+                        </a>
+                        
+                        <a href="{{ url_for('dashboard.repair_membership') }}" class="btn btn-outline-warning">
+                            <i class="bi bi-wrench"></i> Reparación Manual (ID fijo)
+                        </a>
+                        
+                        <!-- NUEVO BOTÓN PARA REPARAR POR EMAIL -->
+                        <a href="{{ url_for('dashboard.repair_by_email') }}" class="btn btn-outline-info">
+                            <i class="bi bi-envelope-check"></i> Reparar por Email
+                        </a>
+                        
+                        <!-- NUEVO BOTÓN PARA CREACIÓN FORZADA -->
+                        <a href="{{ url_for('dashboard.emergency_fix') }}" class="btn btn-outline-danger">
+                            <i class="bi bi-lightning-fill"></i> Reparación de Emergencia
+                        </a>
+                        
+                        <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if plan_info %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Información del Plan</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <tr>
+                            <th>Nombre del plan:</th>
+                            <td>{{ plan_info.plan_name }}</td>
+                        </tr>
+                        <tr>
+                            <th>Estado:</th>
+                            <td>
+                                {% if plan_info.estado == 'activo' %}
+                                <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                <span class="badge bg-warning">{{ plan_info.estado }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Fecha vencimiento:</th>
+                            <td>
+                                {% if plan_info.fecha_vencimiento %}
+                                    {% if plan_info.fecha_vencimiento.strftime %}
+                                        {{ plan_info.fecha_vencimiento.strftime('%d/%m/%Y') }}
+                                    {% else %}
+                                        {{ plan_info.fecha_vencimiento }}
+                                    {% endif %}
+                                {% else %}
+                                    No definida
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- NUEVA SECCIÓN DE DIAGNÓSTICO DE INVITACIONES -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">Diagnóstico de Invitaciones</h5>
+                </div>
+                <div class="card-body">
+                    <p>Esta herramienta verifica si hay invitaciones pendientes para tu email.</p>
+                    
+                    <form action="{{ url_for('dashboard.check_invitations') }}" method="get" class="mb-3">
+                        <div class="input-group">
+                            <input type="email" class="form-control" name="email" value="{{ session_info.email }}" readonly>
+                            <button type="submit" class="btn btn-primary">Verificar Invitaciones</button>
+                        </div>
+                    </form>
+                    
+                    {% if invitations %}
+                    <div class="alert alert-info">
+                        <h6>Invitaciones encontradas para tu email:</h6>
+                        <ul class="list-group mb-3">
+                            {% for inv in invitations %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>ID:</strong> {{ inv.invitation_id[:8] }}... 
+                                    <strong>Rol:</strong> {{ inv.role }}
+                                    <strong>Creada:</strong> {{ inv.created_at.strftime('%d/%m/%Y') if inv.created_at.strftime else inv.created_at }}
+                                </div>
+                                <a href="{{ url_for('dashboard.process_invitation', invitation_id=inv.invitation_id) }}" class="btn btn-sm btn-success">
+                                    Procesar esta invitación
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
