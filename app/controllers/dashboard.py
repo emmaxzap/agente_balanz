@@ -330,67 +330,118 @@ def historial():
     Página de historial completo de transacciones y uso de créditos
     """
     # Cargar historial completo de transacciones
-    from app.models.database_pg import transacciones_table_id
+    from app.models.database_pg import transacciones_table_id, execute_query
     
-    # Parámetros de paginación
-    page = request.args.get('page', 1, type=int)
-    per_page = 20
-    offset = (page - 1) * per_page
-    
-    # Consulta para PostgreSQL - Contar total de transacciones
-    count_query = f"""
-    SELECT COUNT(*) as total
-    FROM {transacciones_table_id}
-    WHERE user_id = %s
+    try:
+        # Parámetros de paginación
+        page = request.args.get('page', 1, type=int)
+        per_page = 20
+        offset = (page - 1) * per_page
+        
+        # Consulta para PostgreSQL - Contar total de transacciones
+        count_query = f"""
+        SELECT COUNT(*) as total
+        FROM {transacciones_table_id}
+        WHERE user_id = %s
+        """
+        
+        count_results = execute_query(count_query, params=(session['user_id'],), fetch=True, as_dict=True)
+        total = 0
+        if count_results:
+            total = count_results[0]['total']
+        
+        # Calcular total de páginas
+        total_pages = (total + per_page - 1) // per_page
+        
+        # CORREGIDO: Eliminada la columna "tipo" que no existe en la tabla
+        query = f"""
+        SELECT transaction_id, monto, creditos, metodo_pago, estado, fecha_transaccion, detalles
+        FROM {transacciones_table_id}
+        WHERE user_id = %s
+        ORDER BY fecha_transaccion DESC
+        LIMIT %s
+        OFFSET %s
+        """
+        
+        params = (session['user_id'], per_page, offset)
+        results = execute_query(query, params=params, fetch=True, as_dict=True)
+        
+        transacciones = []
+        for row in results:
+            transaction = {
+                'transaction_id': row.get('transaction_id', ''),
+                # Derivar tipo a partir del metodo_pago o detalles si es necesario
+                'tipo': determine_transaction_type(row),
+                'monto': row.get('monto', 0),
+                'creditos': row.get('creditos', 0),
+                'metodo_pago': sanitize_output(row.get('metodo_pago', '')),
+                'estado': sanitize_output(row.get('estado', '')),
+                'fecha_transaccion': row.get('fecha_transaccion'),
+                'detalles': row.get('detalles', '{}')
+            }
+            transacciones.append(transaction)
+        
+        # Registrar evento
+        log_app_event(
+            user_id=session['user_id'],
+            module='dashboard',
+            action='view_history',
+            details={'page': page},
+            ip_address=request.remote_addr
+        )
+        
+        return render_template('historial.html', 
+                              transacciones=transacciones,
+                              page=page,
+                              total_pages=total_pages,
+                              total=total)
+                              
+    except Exception as e:
+        # Manejar la excepción
+        print(f"Error al cargar historial: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        # Notificar al usuario
+        flash('Ocurrió un error al cargar el historial de transacciones. Por favor, intenta nuevamente.', 'danger')
+        
+        # Redirigir a dashboard
+        return redirect(url_for('dashboard.index'))
+
+def determine_transaction_type(transaction):
     """
-    
-    count_results = execute_query(count_query, params=(session['user_id'],), fetch=True, as_dict=True)
-    total = 0
-    if count_results:
-        total = count_results[0]['total']
-    
-    # Calcular total de páginas
-    total_pages = (total + per_page - 1) // per_page
-    
-    # Consulta para PostgreSQL - Obtener transacciones paginadas
-    query = f"""
-    SELECT transaction_id, monto, creditos, metodo_pago, estado, fecha_transaccion, detalles
-    FROM {transacciones_table_id}
-    WHERE user_id = %s
-    ORDER BY fecha_transaccion DESC
-    LIMIT %s
-    OFFSET %s
+    Determina el tipo de transacción basado en los datos disponibles
     """
+    # Si hay creditos negativos, es un uso de créditos
+    if transaction.get('creditos', 0) < 0:
+        return 'Enviado'
     
-    params = (session['user_id'], per_page, offset)
-    results = execute_query(query, params=params, fetch=True, as_dict=True)
+    # Basado en método de pago
+    metodo = transaction.get('metodo_pago', '').lower()
+    if 'paypal' in metodo:
+        return 'Compra'
+    elif 'transferencia' in metodo or 'transferencia_equipo' in metodo:
+        return 'Recibido'
     
-    transacciones = []
-    for row in results:
-        transacciones.append({
-            'transaction_id': row['transaction_id'],
-            'monto': row['monto'],
-            'creditos': row['creditos'],
-            'metodo_pago': sanitize_output(row['metodo_pago']),
-            'estado': sanitize_output(row['estado']),
-            'fecha_transaccion': row['fecha_transaccion'],
-            'detalles': row['detalles']
-        })
+    # Intentar determinar por detalles
+    try:
+        detalles = transaction.get('detalles', '{}')
+        if isinstance(detalles, str):
+            import json
+            detalles = json.loads(detalles)
+        
+        if isinstance(detalles, dict):
+            if 'servicio' in detalles:
+                return 'Servicio'
+            elif 'from_user_id' in detalles:
+                return 'Recibido'
+            elif 'to_user_id' in detalles:
+                return 'Enviado'
+    except:
+        pass
     
-    # Registrar evento
-    log_app_event(
-        user_id=session['user_id'],
-        module='dashboard',
-        action='view_history',
-        details={'page': page},
-        ip_address=request.remote_addr
-    )
-    
-    return render_template('historial.html', 
-                          transacciones=transacciones,
-                          page=page,
-                          total_pages=total_pages,
-                          total=total)
+    # Valor por defecto
+    return 'Compra'
 
 @dashboard_bp.route('/team-credits')
 @login_required

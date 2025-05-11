@@ -108,6 +108,10 @@ def create_app(config_name=None):
     csrf.init_app(app)
     limiter.init_app(app)
     
+    # NUEVO: Inicializar gestión de base de datos
+    from app.models.database_pg import init_app as init_db
+    init_db(app)
+    
     # Configuración de seguridad con Talisman
     csp = {
         'default-src': "'self'",
