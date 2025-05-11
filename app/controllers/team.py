@@ -32,6 +32,15 @@ def index():
         flash('Necesitas un plan activo para gestionar equipos.', 'warning')
         return redirect(url_for('payments.planes'))
     
+    # SOLUCIÓN: Asegurarse de que la bandera is_team_member no esté activa para propietarios
+    # El problema parece ser que esta bandera está impidiendo mostrar elementos del menú
+    if 'is_team_member' in session:
+        # Verificar si es propietario
+        team_owner_check = Team.get_team_members(user_id)
+        if team_owner_check:
+            # Si es propietario, no debería tener la bandera is_team_member
+            session.pop('is_team_member', None)
+    
     # Obtener información del equipo
     team_members = Team.get_team_members(user_id)
     

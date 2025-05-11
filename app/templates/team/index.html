@@ -22,7 +22,7 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('payments.planes') }}">Planes</a>
                     </li>
-                    {% if active_plan and not session.is_team_member %}
+                    {% if active_plan %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('upgrade.index') }}">
                             <i class="bi bi-arrow-up-circle"></i> Actualizar Plan
