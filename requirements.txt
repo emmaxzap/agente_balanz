@@ -4,5 +4,6 @@
 
 playwright==1.41.0
 pandas==2.1.4
-supabase==2.3.0
+supabase==2.3.4
 python-dotenv==1.0.0
+postgrest==0.16.8

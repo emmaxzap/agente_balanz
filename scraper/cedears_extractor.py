@@ -1,4 +1,4 @@
-# scraper/cedears_extractor.py - Extracción especializada de CEDEARs
+# scraper/cedears_extractor.py - Extracción especializada de CEDEARs (versión simplificada)
 import pandas as pd
 import time
 from utils.helpers import clean_price_text, extract_ticker_from_id, safe_click_with_retry
@@ -11,13 +11,9 @@ class CedearsExtractor:
     def extract_to_df(self, url, max_cedears=60):
         """
         Extrae cotizaciones de CEDEARs con scroll limitado para optimizar velocidad
-        
-        Args:
-            url: URL de la página de CEDEARs
-            max_cedears: Máximo número de CEDEARs a extraer (por defecto 60)
         """
         try:
-            print(f"\n📈 Navegando a CEDEARs: {url}")
+            print(f"🏛️ Navegando a CEDEARs: {url}")
             self.page.goto(url, wait_until='networkidle')
             time.sleep(5)
             
@@ -37,34 +33,33 @@ class CedearsExtractor:
     
     def _perform_limited_scroll(self, max_cedears):
         """Realiza scroll limitado para cargar solo los primeros CEDEARs"""
-        #print(f"🔄 Iniciando scroll limitado para cargar {max_cedears} CEDEARS...")
-        #print(LOG_MESSAGES['scroll_progress'])
+        print(f"📊 Extrayendo cotizaciones de CEDEARs...")
         
         previous_count = 0
         scroll_attempts = 0
-        max_scroll_attempts = 50  # Reducido significativamente
+        max_scroll_attempts = 50
         no_change_counter = 0
-        max_no_change = 8  # Menos tolerancia
+        max_no_change = 8
         
         while scroll_attempts < max_scroll_attempts:
             # Contar elementos actuales
             current_elements = self.page.locator(SELECTORS['price_elements'])
             current_count = current_elements.count()
             
-            # Mostrar progreso
-            if scroll_attempts % 5 == 0 or current_count != previous_count:
-                print(f"   Scroll {scroll_attempts}: {current_count} CEDEARS cargados")
+            # Mostrar progreso solo cada 10 scrolls
+            if scroll_attempts % 10 == 0 or current_count != previous_count:
+                print(f"   📊 {current_count} CEDEARs cargados...")
             
             # Si ya tenemos suficientes CEDEARs, parar
             if current_count >= max_cedears:
-                print(f"✅ Objetivo alcanzado: {current_count} CEDEARS (objetivo: {max_cedears})")
+                print(f"✅ {current_count} CEDEARs cargados")
                 break
             
             # Verificar si hay cambios
             if current_count == previous_count:
                 no_change_counter += 1
                 if no_change_counter >= max_no_change:
-                    print(f"✅ Carga completada con {current_count} CEDEARS")
+                    print(f"✅ {current_count} CEDEARs cargados")
                     break
             else:
                 no_change_counter = 0
@@ -77,94 +72,36 @@ class CedearsExtractor:
             else:
                 self.page.evaluate('window.scrollBy(0, 800)')
             
-            time.sleep(0.3)  # Menos tiempo de espera
+            time.sleep(0.3)
             scroll_attempts += 1
         
         final_count = self.page.locator(SELECTORS['price_elements']).count()
-        print(f"\n🎯 Scroll completado!")
-        print(f"📊 Total de elementos encontrados: {final_count}")
-        print(f"🔄 Scrolls realizados: {scroll_attempts}")
-        
         return final_count
     
-    def _perform_scroll_action(self, scroll_attempts):
-        """Realiza diferentes tipos de scroll"""
-        if scroll_attempts % 4 == 0:
-            # Scroll con Page Down múltiple
-            for _ in range(3):
-                self.page.keyboard.press('PageDown')
-                time.sleep(0.1)
-        elif scroll_attempts % 4 == 1:
-            # Scroll con rueda del mouse agresivo
-            self.page.mouse.wheel(0, 2000)
-        elif scroll_attempts % 4 == 2:
-            # Scroll JavaScript al final
-            self.page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
-        else:
-            # Scroll JavaScript suave
-            self.page.evaluate('window.scrollBy(0, 1500)')
-    
-    def _checkpoint_scroll(self, scroll_attempts, current_count):
-        """Scroll de checkpoint para asegurar carga"""
-        print(f"🔄 Scroll checkpoint {scroll_attempts}: {current_count} CEDEARS - forzando más carga...")
-        for extra in range(5):
-            self.page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
-            time.sleep(1)
-            self.page.keyboard.press('End')
-            time.sleep(0.5)
-    
-    def _final_aggressive_scroll(self, current_count):
-        """Scroll agresivo final para los últimos elementos"""
-        for extra_scroll in range(20):
-            self.page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
-            time.sleep(1)
-            self.page.keyboard.press('End')
-            time.sleep(0.5)
-            new_count = self.page.locator(SELECTORS['price_elements']).count()
-            if new_count > current_count:
-                current_count = new_count
-                print(f"   📈 Scroll extra {extra_scroll + 1}: {current_count} CEDEARS")
-            if new_count >= 950:
-                break
-    
     def _extract_cedears_data(self, final_count):
-        """Extrae datos de todos los CEDEARs con precios de cierre"""
-        print("🔍 Extrayendo precios actuales y expandiendo para obtener precios de cierre anterior...")
-        
+        """Extrae datos de todos los CEDEARs con precios de cierre"""        
         final_elements = self.page.locator(SELECTORS['price_elements'])
         data = []
         
         for i in range(final_count):
             try:
-                if i % 50 == 0:
-                    print(f"\n--- Procesando CEDEAR {i+1}/{final_count} ---")
+                # Mostrar progreso cada 10 CEDEARs para reducir logs
+                if i % 10 == 0:
+                    print(f"--- Procesando CEDEAR {i+1}/{final_count} ---")
                 
                 cedear_data = self._process_single_cedear(final_elements.nth(i), i, final_count)
                 if cedear_data:
                     data.append(cedear_data)
-                    if i % 50 == 0:
-                        print(f"📝 {cedear_data['cedear']} agregado al DataFrame")
+                    if i % 10 == 0:
+                        print(f"✅ {cedear_data['cedear']} procesado correctamente")
                         
             except Exception as e:
-                print(f"⚠️ Error procesando elemento {i}: {str(e)}")
                 continue
         
         # Crear DataFrame
         if data:
             df = pd.DataFrame(data)
-            print(f"\n📈 DataFrame CEDEARS creado exitosamente!")
-            print(f"📊 Total procesados: {len(df)} CEDEARS")
-            print(f"🎯 Objetivo esperado: 960 CEDEARS")
-            print(f"Columnas: {list(df.columns)}")
-            
-            # Mostrar estado
-            if len(df) >= 950:
-                print("✅ ¡Excelente! Se cargaron prácticamente todos los CEDEARS")
-            elif len(df) >= 800:
-                print("⚠️ Se cargó la mayoría de CEDEARS, pero podrían faltar algunos")
-            else:
-                print("⚠️ Se cargaron menos CEDEARS de los esperados")
-            
+            print(f"✅ {len(df)} CEDEARs extraídos exitosamente")
             return df
         else:
             print("⚠️ No se procesaron CEDEARs")
@@ -186,10 +123,7 @@ class CedearsExtractor:
         if not precio_actual:
             return None
         
-        if index % 50 == 0:
-            print(f"✅ {ticker}: Precio actual ${precio_actual:,.2f}")
-        
-        # Obtener precio de cierre anterior
+        # Obtener precio de cierre anterior (sin prints detallados)
         precio_cierre_anterior, precio_cierre_texto = self._get_precio_cierre_anterior(
             price_element, ticker, index
         )
@@ -208,15 +142,10 @@ class CedearsExtractor:
         expand_button = self._find_expand_button(price_element, index)
         
         if not expand_button:
-            if index % 50 == 0:
-                print(f"⚠️ No se encontró botón de expansión para {ticker}")
             return None, "N/A"
         
         try:
-            if index % 50 == 0:
-                print(f"🖱️ Expandiendo información de {ticker}...")
-            
-            # Scroll hacia el elemento y click
+            # Scroll hacia el elemento y click (sin prints)
             price_element.scroll_into_view_if_needed()
             time.sleep(0.2)
             
@@ -234,15 +163,11 @@ class CedearsExtractor:
                 element = cierre_elements.nth(i)
                 if element.is_visible():
                     texto = element.text_content().strip()
-                    if index % 50 == 0:
-                        print(f"💰 Precio cierre encontrado: '{texto}'")
                     
                     precio_limpio = texto.replace('$', '').replace(' ', '').replace('.', '').replace(',', '.')
                     try:
                         precio_cierre = float(precio_limpio)
                         precio_texto = texto
-                        if index % 50 == 0:
-                            print(f"✅ {ticker}: Cierre anterior ${precio_cierre:,.2f}")
                         break
                     except ValueError:
                         continue
@@ -253,8 +178,6 @@ class CedearsExtractor:
             return precio_cierre, precio_texto
             
         except Exception as e:
-            if index % 50 == 0:
-                print(f"⚠️ Error expandiendo {ticker}: {str(e)}")
             try:
                 expand_button.click()
             except:

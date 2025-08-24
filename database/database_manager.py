@@ -18,18 +18,61 @@ class SupabaseManager:
         
         # Crear cliente de Supabase
         self.supabase: Client = create_client(self.url, self.key)
-        print("✅ Conexión con Supabase establecida")
+        # Removemos el print de conexión establecida
     
     def test_connection(self):
         """Prueba la conexión con Supabase"""
         try:
             # Intentar hacer una consulta simple
             result = self.supabase.table('activos').select('count').execute()
-            print("🔗 Conexión con Supabase funcionando correctamente")
+            print("✅ Conexión con Supabase establecida")
             return True
         except Exception as e:
             print(f"❌ Error de conexión: {str(e)}")
             return False
+    
+    def verificar_registros_existentes(self, df_precios, fecha_datos):
+        """
+        Verifica qué registros ya existen en la base de datos para evitar duplicados
+        
+        Args:
+            df_precios: DataFrame con los precios a insertar
+            fecha_datos: Fecha de los datos (date object)
+        
+        Returns:
+            tuple: (registros_existentes_set, df_filtrado)
+        """
+        try:
+            if fecha_datos is None:
+                fecha_datos = date.today()
+            elif isinstance(fecha_datos, str):
+                fecha_datos = datetime.strptime(fecha_datos, '%Y-%m-%d').date()
+            
+            # Determinar el nombre de la columna del ticker
+            ticker_col = 'accion' if 'accion' in df_precios.columns else 'cedear'
+            tickers_a_insertar = df_precios[ticker_col].tolist()
+            
+            # Consultar registros existentes para esta fecha
+            result = self.supabase.table('precios_historico')\
+                .select('ticker')\
+                .eq('fecha', fecha_datos.isoformat())\
+                .in_('ticker', tickers_a_insertar)\
+                .execute()
+            
+            # Crear set con los tickers que ya existen
+            registros_existentes = set()
+            if result.data:
+                registros_existentes = {record['ticker'] for record in result.data}
+            
+            # Filtrar DataFrame para excluir registros existentes
+            df_filtrado = df_precios[~df_precios[ticker_col].isin(registros_existentes)]
+            
+            return registros_existentes, df_filtrado
+            
+        except Exception as e:
+            print(f"❌ Error verificando registros existentes: {str(e)}")
+            # En caso de error, devolver DataFrame original para no bloquear la inserción
+            return set(), df_precios
     
     def crear_activos_desde_dataframes(self, df_acciones=None, df_cedears=None):
         """
@@ -57,7 +100,7 @@ class SupabaseManager:
                     })
             
             if activos_nuevos:
-                # Insertar todos los activos
+                # Insertar todos los activos (upsert maneja duplicados automáticamente)
                 result = self.supabase.table('activos').upsert(activos_nuevos).execute()
                 print(f"✅ {len(activos_nuevos)} activos creados/actualizados en el maestro")
                 return len(activos_nuevos)
@@ -72,6 +115,78 @@ class SupabaseManager:
     def insertar_precios_masivo(self, df_precios, fecha_datos=None):
         """
         Inserta múltiples precios desde DataFrames (acciones y/o CEDEARs)
+        con verificación de duplicados
+        
+        IMPORTANTE: Usa precio_cierre_anterior como el precio histórico definitivo
+        y fecha debe ser del día anterior (fecha real del precio de cierre)
+        """
+        try:
+            # Si no se especifica fecha, usar AYER (fecha del precio de cierre)
+            if fecha_datos is None:
+                from datetime import timedelta
+                fecha_datos = date.today() - timedelta(days=1)
+            elif isinstance(fecha_datos, str):
+                fecha_datos = datetime.strptime(fecha_datos, '%Y-%m-%d').date()
+            
+            # Verificar registros existentes (sin prints)
+            registros_existentes, df_filtrado = self.verificar_registros_existentes(df_precios, fecha_datos)
+            
+            # Si no hay nada nuevo que insertar
+            if df_filtrado.empty:
+                return 0
+            
+            # Procesar solo los registros nuevos
+            precios_data = []
+            registros_sin_precio_cierre = 0
+            
+            # Determinar el nombre de la columna del ticker
+            ticker_col = 'accion' if 'accion' in df_filtrado.columns else 'cedear'
+            
+            for _, row in df_filtrado.iterrows():
+                try:
+                    ticker = row[ticker_col]
+                    
+                    # VALIDACIÓN CRÍTICA: Debe tener precio_cierre_anterior
+                    if 'precio_cierre_anterior' not in df_filtrado.columns or pd.isna(row['precio_cierre_anterior']):
+                        registros_sin_precio_cierre += 1
+                        continue
+                    
+                    # Usar precio_cierre_anterior como precio histórico definitivo
+                    precio_historico = float(row['precio_cierre_anterior'])
+                    
+                    precio_data = {
+                        'ticker': ticker,
+                        'fecha': fecha_datos.isoformat(),
+                        'precio_actual': float(row['precio']) if 'precio' in df_filtrado.columns and pd.notna(row['precio']) else precio_historico,
+                        'precio_cierre_anterior': precio_historico,
+                        'precio_cierre': precio_historico
+                    }
+                    
+                    precios_data.append(precio_data)
+                    
+                except Exception as e:
+                    continue
+            
+            if precios_data:
+                # Inserción masiva de solo registros nuevos
+                result = self.supabase.table('precios_historico').insert(precios_data).execute()
+                return len(precios_data)
+            else:
+                return 0
+                
+        except Exception as e:
+            print(f"❌ Error en inserción masiva de precios: {str(e)}")
+            return 0
+    
+    def obtener_registros_fecha(self, fecha_datos=None):
+        """
+        Obtiene todos los registros de una fecha específica para debug/verificación
+        
+        Args:
+            fecha_datos: Fecha a consultar (date object o string)
+        
+        Returns:
+            DataFrame con los registros de esa fecha
         """
         try:
             if fecha_datos is None:
@@ -79,47 +194,23 @@ class SupabaseManager:
             elif isinstance(fecha_datos, str):
                 fecha_datos = datetime.strptime(fecha_datos, '%Y-%m-%d').date()
             
-            precios_data = []
-            insertados = 0
-            errores = 0
+            result = self.supabase.table('precios_historico')\
+                .select('*')\
+                .eq('fecha', fecha_datos.isoformat())\
+                .order('ticker')\
+                .execute()
             
-            print(f"\n📊 Insertando precios para fecha: {fecha_datos}")
-            print(f"📋 Total de registros a procesar: {len(df_precios)}")
-            
-            for _, row in df_precios.iterrows():
-                try:
-                    # Determinar el nombre de la columna del ticker
-                    ticker_col = 'accion' if 'accion' in df_precios.columns else 'cedear'
-                    ticker = row[ticker_col]
-                    
-                    precio_data = {
-                        'ticker': ticker,
-                        'fecha': fecha_datos.isoformat(),
-                        'precio_actual': float(row['precio']),
-                        'precio_cierre_anterior': float(row['precio_cierre_anterior']) if 'precio_cierre_anterior' in df_precios.columns and pd.notna(row['precio_cierre_anterior']) else None
-                    }
-                    
-                    precios_data.append(precio_data)
-                    insertados += 1
-                    
-                except Exception as e:
-                    print(f"⚠️ Error procesando {ticker}: {str(e)}")
-                    errores += 1
-                    continue
-            
-            if precios_data:
-                # Inserción masiva
-                result = self.supabase.table('precios_historico').upsert(precios_data).execute()
-                print(f"✅ {len(precios_data)} precios insertados exitosamente")
-                print(f"📊 Resumen: {insertados} procesados, {errores} errores")
-                return len(precios_data)
+            if result.data:
+                df = pd.DataFrame(result.data)
+                print(f"📋 Registros encontrados para {fecha_datos}: {len(df)}")
+                return df
             else:
-                print("⚠️ No hay datos para insertar")
-                return 0
+                print(f"📋 No hay registros para la fecha {fecha_datos}")
+                return pd.DataFrame()
                 
         except Exception as e:
-            print(f"❌ Error en inserción masiva de precios: {str(e)}")
-            return 0
+            print(f"❌ Error obteniendo registros de fecha: {str(e)}")
+            return pd.DataFrame()
     
     def obtener_ultimo_precio(self, ticker):
         """Obtiene el último precio registrado de un activo"""
@@ -164,7 +255,8 @@ class SupabaseManager:
         try:
             result = self.supabase.table('activos')\
                 .select('*')\
-                .order('tipo', 'ticker')\
+                .order('tipo', desc=False)\
+                .order('ticker', desc=False)\
                 .execute()
             
             if result.data:
@@ -180,11 +272,105 @@ class SupabaseManager:
                 
         except Exception as e:
             print(f"❌ Error obteniendo resumen: {str(e)}")
-            return pd.DataFrame()
+            # Fallback: intentar sin ordenamiento
+            try:
+                print("🔄 Intentando consulta simplificada...")
+                result = self.supabase.table('activos')\
+                    .select('*')\
+                    .execute()
+                
+                if result.data:
+                    df = pd.DataFrame(result.data)
+                    print(f"\n📊 Resumen de activos en la base:")
+                    print(f"   📈 Acciones: {len(df[df['tipo'] == 'ACCION'])}")
+                    print(f"   🏛️ CEDEARs: {len(df[df['tipo'] == 'CEDEAR'])}")
+                    print(f"   📊 Total: {len(df)}")
+                    return df
+                else:
+                    print("⚠️ No hay activos en la base de datos")
+                    return pd.DataFrame()
+            except Exception as e2:
+                print(f"❌ Error en consulta fallback: {str(e2)}")
+                return pd.DataFrame()
+    
+    def obtener_estadisticas_fecha(self, fecha_datos=None):
+        """
+        Obtiene estadísticas detalladas de una fecha específica
+        
+        Args:
+            fecha_datos: Fecha a analizar
+        
+        Returns:
+            dict con estadísticas
+        """
+        try:
+            if fecha_datos is None:
+                fecha_datos = date.today()
+            elif isinstance(fecha_datos, str):
+                fecha_datos = datetime.strptime(fecha_datos, '%Y-%m-%d').date()
+            
+            # Consultar todos los registros de la fecha
+            result = self.supabase.table('precios_historico')\
+                .select('ticker')\
+                .eq('fecha', fecha_datos.isoformat())\
+                .execute()
+            
+            if result.data:
+                # Obtener los tickers para determinar el tipo
+                tickers = [record['ticker'] for record in result.data]
+                
+                # Consultar tipos de activos para estos tickers
+                activos_result = self.supabase.table('activos')\
+                    .select('ticker, tipo')\
+                    .in_('ticker', tickers)\
+                    .execute()
+                
+                # Crear diccionario ticker -> tipo
+                ticker_tipos = {}
+                if activos_result.data:
+                    ticker_tipos = {row['ticker']: row['tipo'] for row in activos_result.data}
+                
+                # Contar por tipo
+                acciones = sum(1 for ticker in tickers if ticker_tipos.get(ticker) == 'ACCION')
+                cedears = sum(1 for ticker in tickers if ticker_tipos.get(ticker) == 'CEDEAR')
+                
+                stats = {
+                    'fecha': fecha_datos.isoformat(),
+                    'total_registros': len(result.data),
+                    'acciones': acciones,
+                    'cedears': cedears
+                }
+                
+                print(f"\n📊 Estadísticas para {fecha_datos}:")
+                print(f"   📈 Acciones: {stats['acciones']}")
+                print(f"   🏛️ CEDEARs: {stats['cedears']}")
+                print(f"   📊 Total: {stats['total_registros']}")
+                
+                return stats
+            else:
+                stats = {
+                    'fecha': fecha_datos.isoformat(),
+                    'total_registros': 0,
+                    'acciones': 0,
+                    'cedears': 0
+                }
+                print(f"\n📊 Estadísticas para {fecha_datos}:")
+                print(f"   📊 No hay datos para esta fecha")
+                return stats
+                
+        except Exception as e:
+            print(f"❌ Error obteniendo estadísticas: {str(e)}")
+            return None
 
 def procesar_y_guardar_datos(df_acciones=None, df_cedears=None, fecha_datos=None):
     """
     Función principal que procesa y guarda los datos extraídos en Supabase
+    con verificación de duplicados mejorada
+    
+    LÓGICA CORREGIDA:
+    - Si no se especifica fecha_datos, usa AYER (fecha real del precio de cierre)
+    - Guarda precio_cierre_anterior como precio histórico definitivo
+    - Ignora precio_actual (es dinámico del día actual)
     """
     print("\n" + "="*60)
     print("🗄️ INICIANDO GUARDADO EN BASE DE DATOS")
@@ -193,41 +379,33 @@ def procesar_y_guardar_datos(df_acciones=None, df_cedears=None, fecha_datos=None
     # Crear instancia del manager
     db = SupabaseManager()
     
-    # Probar conexión
+    # Probar conexión (sin print extra)
     if not db.test_connection():
         print("❌ No se pudo conectar a la base de datos")
         return False
     
     try:
-        # 1. Crear/actualizar activos en el maestro
-        print("\n📋 Paso 1: Actualizando maestro de activos...")
-        activos_creados = db.crear_activos_desde_dataframes(df_acciones, df_cedears)
+        # Establecer fecha correcta si no se especifica
+        if fecha_datos is None:
+            from datetime import timedelta
+            fecha_datos = date.today() - timedelta(days=1)
         
-        # 2. Insertar precios históricos
-        print("\n💰 Paso 2: Insertando precios históricos...")
-        
+        # Insertar precios históricos con verificación de duplicados
         precios_insertados = 0
         
         # Insertar acciones
         if df_acciones is not None and not df_acciones.empty:
-            print("\n📈 Insertando precios de ACCIONES...")
             insertados = db.insertar_precios_masivo(df_acciones, fecha_datos)
             precios_insertados += insertados
         
         # Insertar CEDEARs
         if df_cedears is not None and not df_cedears.empty:
-            print("\n🏛️ Insertando precios de CEDEARS...")
             insertados = db.insertar_precios_masivo(df_cedears, fecha_datos)
             precios_insertados += insertados
         
-        # 3. Mostrar resumen
-        print("\n📊 Paso 3: Resumen final...")
-        db.obtener_resumen_activos()
-        
-        print(f"\n🎯 RESUMEN DE LA OPERACIÓN:")
-        print(f"   📋 Activos procesados: {activos_creados}")
-        print(f"   💰 Precios insertados: {precios_insertados}")
-        print(f"   📅 Fecha de datos: {fecha_datos or date.today()}")
+        print(f"\n🎯 RESUMEN:")
+        print(f"   💰 Precios de cierre insertados: {precios_insertados}")
+        print(f"   📅 Fecha de los precios: {fecha_datos}")
         
         return True
         

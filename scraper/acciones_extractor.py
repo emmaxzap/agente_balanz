@@ -1,4 +1,4 @@
-# scraper/acciones_extractor.py - Extracción especializada de acciones
+# scraper/acciones_extractor.py - Extracción especializada de acciones (versión simplificada)
 import pandas as pd
 import time
 from utils.helpers import clean_price_text, extract_ticker_from_id, log_progress, safe_click_with_retry
@@ -13,7 +13,7 @@ class AccionesExtractor:
         Extrae cotizaciones de acciones con precios de cierre anterior
         """
         try:
-            print(f"\n📊 Navegando a acciones: {url}")
+            print(f"📊 Navegando a acciones: {url}")
             self.page.goto(url, wait_until='networkidle')
             time.sleep(5)
             
@@ -25,29 +25,30 @@ class AccionesExtractor:
                 print("❌ No se encontraron elementos de precios")
                 return pd.DataFrame()
             
-            print(f"🔍 Encontrados {count} elementos de acciones")
-            print(f"\n{LOG_MESSAGES['extracting_acciones']}")
+            print(f"📊 Extrayendo cotizaciones de acciones...")
             
             # Procesar cada acción
             data = []
             for i in range(count):
                 try:
-                    print(f"\n--- Procesando acción {i+1}/{count} ---")
+                    # Solo mostrar progreso cada 5 acciones para reducir logs
+                    if i % 5 == 0:
+                        print(f"--- Procesando acción {i+1}/{count} ---")
                     
                     accion_data = self._process_single_accion(price_elements.nth(i), i)
                     if accion_data:
                         data.append(accion_data)
-                        print(f"✅ {accion_data['accion']} procesada correctamente")
+                        if i % 5 == 0:
+                            print(f"📊 {accion_data['accion']}: ${accion_data['precio']:,.2f}")
+                            print(f"✅ {accion_data['accion']} procesada correctamente")
                 
                 except Exception as e:
-                    print(f"⚠️ Error procesando acción {i+1}: {str(e)}")
                     continue
             
             # Crear DataFrame
             if data:
                 df = pd.DataFrame(data)
-                print(f"\n📈 DataFrame de acciones creado: {len(df)} registros")
-                print(f"Columnas: {list(df.columns)}")
+                print(f"✅ {len(df)} acciones extraídas exitosamente")
                 return df
             else:
                 print("⚠️ No se procesaron acciones")
@@ -64,7 +65,6 @@ class AccionesExtractor:
         price_text = price_element.text_content().strip()
         
         if not element_id or not price_text:
-            print(f"⚠️ Elemento sin ID o precio")
             return None
         
         # Extraer ticker y precio
@@ -72,12 +72,9 @@ class AccionesExtractor:
         precio_actual = clean_price_text(price_text)
         
         if not precio_actual:
-            print(f"⚠️ No se pudo procesar precio: {price_text}")
             return None
         
-        print(f"📊 {ticker}: ${precio_actual:,.2f}")
-        
-        # Obtener precio de cierre anterior
+        # Obtener precio de cierre anterior (sin prints detallados)
         precio_cierre_anterior, precio_cierre_texto = self._get_precio_cierre_anterior(
             price_element, ticker, index
         )
@@ -96,13 +93,10 @@ class AccionesExtractor:
         expand_button = self._find_expand_button(price_element, index)
         
         if not expand_button:
-            print(f"⚠️ No se encontró botón de expansión para {ticker}")
             return None, "N/A"
         
         try:
-            print(f"🖱️ Expandiendo información de {ticker}...")
-            
-            # Click para abrir
+            # Click para abrir (sin prints)
             if not safe_click_with_retry(expand_button):
                 return None, "N/A"
             
@@ -117,16 +111,13 @@ class AccionesExtractor:
                 element = cierre_elements.nth(i)
                 if element.is_visible():
                     texto = element.text_content().strip()
-                    print(f"💰 Precio cierre encontrado: '{texto}'")
                     
                     precio_limpio = texto.replace('$', '').replace(' ', '').replace('.', '').replace(',', '.')
                     try:
                         precio_cierre = float(precio_limpio)
                         precio_texto = texto
-                        print(f"✅ {ticker}: Cierre anterior ${precio_cierre:,.2f}")
                         break
                     except ValueError:
-                        print(f"⚠️ No se pudo convertir: '{precio_limpio}'")
                         continue
             
             # Click para cerrar
@@ -135,7 +126,6 @@ class AccionesExtractor:
             return precio_cierre, precio_texto
             
         except Exception as e:
-            print(f"⚠️ Error obteniendo cierre anterior de {ticker}: {str(e)}")
             try:
                 expand_button.click()  # Intentar cerrar
             except:

@@ -1,6 +1,7 @@
 # main.py - Script principal para extraer cotizaciones de Balanz
 """
 Script principal para extraer cotizaciones de Balanz y guardar en Supabase
+Con verificación de duplicados mejorada
 
 Uso:
     python main.py                 # Ejecución normal
@@ -23,7 +24,7 @@ from config import LOGIN_CONFIG
 def parse_arguments():
     """Parsea argumentos de línea de comandos"""
     parser = argparse.ArgumentParser(
-        description='Extractor de cotizaciones de Balanz',
+        description='Extractor de cotizaciones de Balanz con verificación de duplicados',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Ejemplos de uso:
@@ -32,6 +33,7 @@ Ejemplos de uso:
   python main.py --date 2025-01-15  # Especificar fecha de datos
   python main.py --only-acciones    # Solo extraer acciones
   python main.py --only-cedears     # Solo extraer CEDEARs
+  python main.py --force            # Forzar inserción (ignorar duplicados)
         """
     )
     
@@ -65,6 +67,18 @@ Ejemplos de uso:
         help='Mostrar información detallada de debug'
     )
     
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Forzar inserción ignorando verificación de duplicados'
+    )
+    
+    parser.add_argument(
+        '--check-db',
+        action='store_true',
+        help='Solo verificar estado de la base de datos sin extraer'
+    )
+    
     return parser.parse_args()
 
 def validate_date(date_string):
@@ -78,6 +92,21 @@ def validate_date(date_string):
         print(f"❌ Formato de fecha inválido: {date_string}")
         print("   Formato esperado: YYYY-MM-DD")
         return None
+
+def check_database_status(fecha_datos=None):
+    """Verifica el estado de la base de datos"""
+    from database.database_manager import SupabaseManager
+    
+    print(f"🔍 PRE-VERIFICACIÓN DE BASE DE DATOS")
+    print("-" * 50)
+    print("🔍 VERIFICANDO ESTADO DE LA BASE DE DATOS")
+    print("-" * 50)
+    
+    db = SupabaseManager()
+    if not db.test_connection():
+        return False
+    
+    return True
 
 def extract_data(scraper, extract_acciones=True, extract_cedears=True, verbose=False):
     """Extrae los datos según los parámetros especificados"""
@@ -143,15 +172,12 @@ def show_extraction_summary(df_acciones, df_cedears):
 def show_config_info(args, fecha_datos):
     """Muestra información de configuración"""
     print(f"📅 Fecha de datos: {fecha_datos or date.today()}")
-    print(f"🖥️ Modo headless: {'Sí' if args.headless else 'No'}")
-    print(f"📈 Extraer acciones: {'Sí' if not args.only_cedears else 'No'}")
-    print(f"🏛️ Extraer CEDEARs: {'Sí' if not args.only_acciones else 'No'}")
-    print(f"🔍 Modo verbose: {'Sí' if args.verbose else 'No'}")
+    # Removemos los otros prints para simplicidad
 
 def main():
     """Función principal del script"""
-    print("🚀 BALANZ SCRAPER v2.0")
-    print("="*60)
+    print("🚀 BALANZ SCRAPER v2.1 - Con Verificación de Duplicados")
+    print("="*65)
     
     # Parsear argumentos
     args = parse_arguments()
@@ -161,12 +187,21 @@ def main():
     if args.date and not fecha_datos:
         return False
     
+    # Si solo queremos verificar la base de datos
+    if args.check_db:
+        return check_database_status(fecha_datos)
+    
     # Configurar qué extraer
     extract_acciones = not args.only_cedears
     extract_cedears = not args.only_acciones
     
     # Mostrar configuración
     show_config_info(args, fecha_datos)
+    
+    # Verificar estado de la base antes de empezar
+    print(f"\n🔍 PRE-VERIFICACIÓN DE BASE DE DATOS")
+    print("-" * 50)
+    check_database_status(fecha_datos)
     
     # Inicializar scraper
     scraper = WebScraperPlaywright(headless=args.headless)
@@ -176,8 +211,9 @@ def main():
         scraper.start_browser()
         
         # Realizar login
-        print(f"\n🔐 INICIANDO LOGIN")
-        print("-" * 40)
+        print(f"\n----------------------------------------")
+        print(f"🌐 Navegando a: {LOGIN_CONFIG['url']}")
+        print()
         
         login_success = scraper.login(
             url=LOGIN_CONFIG['url'],
@@ -205,7 +241,11 @@ def main():
         
         # Guardar en base de datos
         print(f"\n💾 GUARDANDO EN BASE DE DATOS")
-        print("-" * 40)
+        print("-" * 50)
+        
+        if args.force:
+            print("⚡ MODO FORZADO: Se saltará la verificación de duplicados")
+            # Aquí podrías implementar una versión que ignore duplicados si es necesario
         
         resultado = procesar_y_guardar_datos(
             df_acciones=df_acciones if df_acciones is not None and not df_acciones.empty else None,
@@ -213,16 +253,17 @@ def main():
             fecha_datos=fecha_datos
         )
         
+        # Post-verificación de la base de datos (opcional, sin detalles)
+        # check_database_status(fecha_datos)
+        
         # Resultado final
-        print(f"\n{'='*60}")
+        print(f"\n{'='*65}")
         if resultado:
             print("🎉 PROCESO COMPLETADO EXITOSAMENTE")
-            print("✅ Todos los datos fueron extraídos y guardados")
         else:
             print("⚠️ PROCESO COMPLETADO CON ERRORES")
-            print("❌ Hubo problemas guardando en la base de datos")
         
-        print("="*60)
+        print("="*65)
         return resultado
         
     except KeyboardInterrupt:

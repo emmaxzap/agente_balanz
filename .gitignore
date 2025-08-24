@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # ============================================================================
 # .gitignore - Archivos a ignorar en Git
 # ============================================================================
@@ -18,6 +17,16 @@ __pycache__/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+*.py[cod]
+*$py.class
+
+# Entorno virtual
+venv/
+env/
+
+# Credenciales
+*.json
+*.key
 
 # IDEs
 .vscode/
@@ -40,23 +49,3 @@ logs/
 
 # Screenshots (si el scraper genera capturas)
 screenshots/
-=======
-# Entorno virtual
-venv/
-env/
-.env
-
-# Credenciales
-*.json
-*.key
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-
-# Otros
-.DS_Store
->>>>>>> 4267be413778e70e7e9c504266f65d63173cd634
