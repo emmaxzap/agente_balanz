@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administrar Créditos del Equipo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        .credit-card {
+            border-radius: 10px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .credit-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .credit-value {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">Sistema de Créditos</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard.index') }}">Panel</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('payments.planes') }}">Planes</a>
+                    </li>
+                    {% if active_plan %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('payments.recargar_creditos') }}">Recargar Créditos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('dashboard.team_credits') }}">Gestionar Créditos</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('team.index') }}">Equipo</a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.logout') }}">Cerrar Sesión</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <div id="alertContainer"></div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3>Administración de Créditos del Equipo</h3>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card credit-card bg-success text-white">
+                            <div class="card-body">
+                                <h5 class="card-title">Tu Balance</h5>
+                                <p class="credit-value" id="adminCredits">{{ user.creditos }}</p>
+                                <p class="card-text">Créditos disponibles para transferir</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card credit-card bg-info text-white">
+                            <div class="card-body">
+                                <h5 class="card-title">Miembros de tu Equipo</h5>
+                                <p class="credit-value">{{ team_members|length }}</p>
+                                <p class="card-text">Usuarios bajo tu plan</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h4 class="mb-3">Transferir Créditos a Miembros</h4>
+                <p>Como administrador, puedes transferir créditos a los miembros de tu equipo para que puedan utilizarlos.</p>
+                
+                {% if team_members %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Miembro</th>
+                                <th>Email</th>
+                                <th>Rol</th>
+                                <th>Créditos</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for member in team_members %}
+                            <tr id="member-row-{{ member.member_id }}">
+                                <td>{{ member.nombre }} {{ member.apellido }}</td>
+                                <td>{{ member.email }}</td>
+                                <td>
+                                    {% if member.role == 'admin' %}
+                                    <span class="badge bg-danger">Administrador</span>
+                                    {% elif member.role == 'manager' %}
+                                    <span class="badge bg-warning text-dark">Manager</span>
+                                    {% elif member.role == 'editor' %}
+                                    <span class="badge bg-success">Editor</span>
+                                    {% else %}
+                                    <span class="badge bg-info">Visualizador</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-success" id="member-credits-{{ member.member_id }}">{{ member.creditos }}</span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-primary btn-sm" 
+                                           data-bs-toggle="modal" 
+                                           data-bs-target="#transferModal"
+                                           data-member-id="{{ member.member_id }}"
+                                           data-member-name="{{ member.nombre }}"
+                                           data-member-email="{{ member.email }}">
+                                        <i class="bi bi-arrow-right-circle"></i> Transferir
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    No tienes miembros en tu equipo. Ve a la sección de <a href="{{ url_for('team.index') }}">Gestionar Equipo</a> para invitar usuarios.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card bg-light">
+            <div class="card-body">
+                <h5>¿Cómo funciona la transferencia de créditos?</h5>
+                <ol>
+                    <li>Solo tú, como administrador, puedes transferir créditos a los miembros de tu equipo.</li>
+                    <li>Los créditos se descuentan de tu balance y se añaden al balance del miembro.</li>
+                    <li>Cada miembro puede ver y usar únicamente sus propios créditos.</li>
+                    <li>El miembro del equipo no puede transferir créditos a otros miembros.</li>
+                    <li>Para aumentar tu balance, puedes <a href="{{ url_for('payments.recargar_creditos') }}">recargar créditos</a>.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal de Transferencia -->
+    <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Transferir Créditos</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Transferir créditos a: <strong id="memberName"></strong> (<span id="memberEmail"></span>)</p>
+                    
+                    <form id="transferForm">
+                        <input type="hidden" id="memberId" name="member_id">
+                        <div class="mb-3">
+                            <label for="cantidad" class="form-label">Cantidad de créditos</label>
+                            <input type="number" class="form-control" id="cantidad" name="cantidad" min="1" max="{{ user.creditos }}" required>
+                            <div class="form-text">Máximo disponible: <span id="maxCredits">{{ user.creditos }}</span> créditos</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="confirmTransfer">Transferir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Configurar el modal cuando se abre
+            const transferModal = document.getElementById('transferModal');
+            transferModal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                const memberId = button.getAttribute('data-member-id');
+                const memberName = button.getAttribute('data-member-name');
+                const memberEmail = button.getAttribute('data-member-email');
+                
+                document.getElementById('memberId').value = memberId;
+                document.getElementById('memberName').textContent = memberName;
+                document.getElementById('memberEmail').textContent = memberEmail;
+                
+                // Reiniciar el formulario
+                document.getElementById('transferForm').reset();
+                
+                // Establecer el máximo disponible
+                const adminCredits = parseInt(document.getElementById('adminCredits').textContent);
+                document.getElementById('maxCredits').textContent = adminCredits;
+                document.getElementById('cantidad').max = adminCredits;
+            });
+            
+            // Manejar la transferencia
+            document.getElementById('confirmTransfer').addEventListener('click', function() {
+                const form = document.getElementById('transferForm');
+                const memberId = document.getElementById('memberId').value;
+                const cantidad = parseInt(document.getElementById('cantidad').value);
+                const adminCredits = parseInt(document.getElementById('adminCredits').textContent);
+                
+                // Validaciones básicas
+                if (!form.checkValidity()) {
+                    form.reportValidity();
+                    return;
+                }
+                
+                if (cantidad <= 0) {
+                    showAlert('La cantidad debe ser mayor que cero', 'danger');
+                    return;
+                }
+                
+                if (cantidad > adminCredits) {
+                    showAlert('No tienes suficientes créditos para esta transferencia', 'danger');
+                    return;
+                }
+                
+                // Crear FormData para enviar
+                const formData = new FormData();
+                formData.append('member_id', memberId);
+                formData.append('cantidad', cantidad);
+                
+                // Hacer la solicitud AJAX
+                fetch('{{ url_for("dashboard.transfer_credits") }}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': '{{ csrf_token() }}'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Actualizar la UI
+                        document.getElementById('adminCredits').textContent = data.admin_credits;
+                        document.getElementById('member-credits-' + memberId).textContent = data.member_credits;
+                        
+                        // Cerrar modal y mostrar mensaje
+                        const modal = bootstrap.Modal.getInstance(transferModal);
+                        modal.hide();
+                        
+                        showAlert(data.message, 'success');
+                    } else {
+                        showAlert(data.message, 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showAlert('Error al procesar la transferencia', 'danger');
+                });
+            });
+            
+            // Función para mostrar alertas
+            function showAlert(message, type) {
+                const alertContainer = document.getElementById('alertContainer');
+                const alertElement = document.createElement('div');
+                alertElement.className = `alert alert-${type} alert-dismissible fade show`;
+                alertElement.innerHTML = `
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+                
+                alertContainer.appendChild(alertElement);
+                
+                // Desaparecer después de 5 segundos
+                setTimeout(() => {
+                    const alert = bootstrap.Alert.getOrCreateInstance(alertElement);
+                    alert.close();
+                }, 5000);
+            }
+        });
+    </script>
+</body>
+</html>

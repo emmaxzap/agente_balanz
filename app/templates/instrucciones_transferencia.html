@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instrucciones de Transferencia</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="text-center">Instrucciones de Transferencia Bancaria</h3>
+                    </div>
+                    <div class="card-body">
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        
+                        <div class="alert alert-info">
+                            <p><strong>¡Importante!</strong> Por favor guarda este número de referencia y utilízalo en el concepto de tu transferencia:</p>
+                            <h4 class="text-center">{{ transfer_id }}</h4>
+                        </div>
+                        
+                        <h5 class="mt-4">Detalles del Pago:</h5>
+                        <table class="table table-bordered">
+                            <tr>
+                                <th>Cantidad de Créditos:</th>
+                                <td>{{ cantidad_creditos }}</td>
+                            </tr>
+                            <tr>
+                                <th>Monto a Transferir:</th>
+                                <td>${{ "%.2f"|format(monto) }} USD</td>
+                            </tr>
+                            <tr>
+                                <th>Referencia:</th>
+                                <td>{{ transfer_id }}</td>
+                            </tr>
+                        </table>
+                        
+                        <h5 class="mt-4">Datos Bancarios:</h5>
+                        <table class="table table-bordered">
+                            <tr>
+                                <th>Banco:</th>
+                                <td>Banco Ejemplo</td>
+                            </tr>
+                            <tr>
+                                <th>Titular:</th>
+                                <td>Tu Empresa S.A.</td>
+                            </tr>
+                            <tr>
+                                <th>Cuenta:</th>
+                                <td>1234-5678-9012-3456</td>
+                            </tr>
+                            <tr>
+                                <th>CLABE/IBAN:</th>
+                                <td>012345678901234567</td>
+                            </tr>
+                            <tr>
+                                <th>Swift/BIC:</th>
+                                <td>EXAMPLEXXX</td>
+                            </tr>
+                        </table>
+                        
+                        <div class="alert alert-warning mt-4">
+                            <h5>Instrucciones:</h5>
+                            <ol>
+                                <li>Realiza la transferencia por el monto exacto indicado arriba.</li>
+                                <li>Incluye el número de referencia <strong>{{ transfer_id }}</strong> en el concepto de la transferencia.</li>
+                                <li>Una vez realizada la transferencia, envía el comprobante a <a href="mailto:pagos@tuempresa.com">pagos@tuempresa.com</a> indicando tu número de referencia.</li>
+                                <li>Los créditos serán acreditados a tu cuenta en un plazo de 24-48 horas hábiles después de verificar el pago.</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="d-grid gap-2 col-md-6 mx-auto mt-4">
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Volver al panel</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

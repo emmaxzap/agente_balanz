@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recuperación en espera</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-md-6 offset-md-3">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="text-center">Recuperación en espera</h3>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="alert alert-warning">
+                            <h4><i class="bi bi-clock"></i> Espera requerida</h4>
+                            <p>No puedes cambiar tu contraseña todavía debido a restricciones técnicas.</p>
+                            <p>Por favor, intenta nuevamente en aproximadamente <strong>{{ minutos_restantes }} minutos</strong>.</p>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <a href="{{ url_for('auth.login') }}" class="btn btn-primary">Volver al inicio de sesión</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error 400 - Solicitud Incorrecta</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding-top: 50px;
+        }
+        .error-container {
+            max-width: 600px;
+            margin: 0 auto;
+            text-align: center;
+            padding: 30px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .error-code {
+            font-size: 72px;
+            color: #dc3545;
+            margin-bottom: 20px;
+        }
+        .error-message {
+            font-size: 24px;
+            color: #343a40;
+            margin-bottom: 20px;
+        }
+        .error-details {
+            color: #6c757d;
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-container">
+            <div class="error-code">400</div>
+            <div class="error-message">Solicitud Incorrecta</div>
+            <div class="error-details">
+                <p>Lo sentimos, pero ha ocurrido un error al procesar tu solicitud.</p>
+                <p>Es posible que tu sesión haya expirado o que falte información necesaria.</p>
+            </div>
+            <div class="actions">
+                <a href="{{ url_for('index') }}" class="btn btn-primary">Volver al Inicio</a>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-success ms-2">Iniciar Sesión</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // Verificar si la sesión ha expirado y redirigir automáticamente
+    document.addEventListener('DOMContentLoaded', function() {
+        // Si estamos en una página que requiere autenticación
+        if (window.location.href.includes('/dashboard/') || 
+            window.location.href.includes('/team/') || 
+            window.location.href.includes('/payments/')) {
+            
+            // Redirigir al login después de un breve retraso
+            setTimeout(function() {
+                window.location.href = "{{ url_for('auth.login') }}?redirect=" + encodeURIComponent(window.location.pathname);
+            }, 3000); // Redirigir después de 3 segundos
+            
+            // Mostrar mensaje de redirección
+            var detailsElement = document.querySelector('.error-details');
+            if (detailsElement) {
+                var redirectMessage = document.createElement('p');
+                redirectMessage.innerHTML = '<strong>Serás redirigido a la página de inicio de sesión en unos segundos...</strong>';
+                redirectMessage.style.color = '#28a745';
+                detailsElement.appendChild(redirectMessage);
+            }
+        }
+    });
+    </script>
+</body>
+</html>
