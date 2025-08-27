@@ -1,4 +1,4 @@
-# portfolio_manager.py - Motor principal del administrador de cartera
+# portfolio_manager.py - Motor principal con análisis financiero unificado
 from datetime import date
 import sys
 from pathlib import Path
@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
 from scraper.cartera_extractor import CarteraExtractor
-from analysis.technical_analyzer import TechnicalAnalyzer
+from analysis.financial_analyzer import FinancialAnalyzer
 from database.database_manager import SupabaseManager
 
 class PortfolioManager:
@@ -15,18 +15,17 @@ class PortfolioManager:
         self.page = page
         self.db = SupabaseManager()
         self.cartera_extractor = CarteraExtractor(page)
-        self.analyzer = TechnicalAnalyzer(self.db)
+        self.financial_analyzer = FinancialAnalyzer(self.db)
         self.portfolio_data = None
     
     def run_complete_analysis(self):
         """
         Ejecuta análisis completo de la cartera:
         1. Extrae datos de la cartera
-        2. Analiza posiciones existentes para venta
+        2. Analiza posiciones existentes para venta (basado en rendimiento anualizado)
         3. Busca oportunidades de compra
         4. Genera recomendaciones
-        5. Guarda resultados
-        6. Envía notificación por WhatsApp
+        5. Envía notificación por WhatsApp
         """
         try:
             print("\n🚀 INICIANDO ANÁLISIS COMPLETO DE CARTERA")
@@ -39,28 +38,47 @@ class PortfolioManager:
                 print("❌ No se pudieron extraer datos de la cartera")
                 return False
             
-            # 2. Guardar snapshot de la cartera en BD
-            self.cartera_extractor.save_portfolio_to_db(self.portfolio_data, self.db)
+            # 2. Análisis de posiciones existentes (decisiones de venta basadas en rendimiento anualizado)
+            print(f"\n📊 ANÁLISIS FINANCIERO DE CARTERA")
+            print("-" * 50)
             
-            # 3. Análisis de posiciones existentes (decisiones de venta)
-            sell_recommendations = self.analyzer.analyze_portfolio_for_sell_decisions(
+            sell_recommendations = self.financial_analyzer.analyze_portfolio_for_sell_decisions(
                 self.portfolio_data['activos']
             )
             
-            # 4. Análisis de mercado (oportunidades de compra)
+            # Mostrar resultados del análisis
+            for asset in self.portfolio_data['activos']:
+                ticker = asset['ticker']
+                dias_tenencia = asset.get('dias_tenencia', 1)
+                ganancia_perdida_pct = asset['ganancia_perdida_porcentaje']
+                
+                if dias_tenencia > 0:
+                    rendimiento_anualizado = (ganancia_perdida_pct / dias_tenencia) * 365
+                else:
+                    rendimiento_anualizado = 0
+                
+                # Buscar si está en recomendaciones de venta
+                sell_rec = next((rec for rec in sell_recommendations if rec['ticker'] == ticker), None)
+                
+                if sell_rec:
+                    print(f"🔴 {ticker}: VENTA recomendada - {sell_rec['primary_reason']}")
+                else:
+                    print(f"🟢 {ticker}: MANTENER - Rendimiento {rendimiento_anualizado:.0f}% anualizado")
+            
+            # 3. Análisis de mercado (oportunidades de compra)
             owned_tickers = [asset['ticker'] for asset in self.portfolio_data['activos']]
-            buy_opportunities = self.analyzer.analyze_market_for_buy_opportunities(
+            buy_opportunities = self.financial_analyzer.analyze_market_for_buy_opportunities(
                 self.portfolio_data['dinero_disponible'],
                 owned_tickers
             )
             
-            # 5. Generar informe consolidado
+            # 4. Generar informe consolidado
             self._generate_recommendations_report(sell_recommendations, buy_opportunities)
             
-            # 6. Guardar recomendaciones en BD
+            # 5. Guardar recomendaciones en BD
             self._save_recommendations_to_db(sell_recommendations, buy_opportunities)
             
-            # 7. Enviar notificación por WhatsApp
+            # 6. Enviar notificación por WhatsApp
             self._send_whatsapp_notification(sell_recommendations, buy_opportunities)
             
             print("\n✅ ANÁLISIS COMPLETO FINALIZADO")
@@ -69,13 +87,15 @@ class PortfolioManager:
             
         except Exception as e:
             print(f"❌ Error en análisis completo: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def _generate_recommendations_report(self, sell_recs: list, buy_opps: list):
         """Genera reporte consolidado de recomendaciones"""
         
         print("\n" + "="*60)
-        print("📋 REPORTE DE RECOMENDACIONES")
+        print("📋 REPORTE DE RECOMENDACIONES FINANCIERAS")
         print("="*60)
         
         # Resumen ejecutivo
@@ -89,6 +109,8 @@ class PortfolioManager:
                 print(f"📊 {rec['ticker']} - Confianza: {rec['confidence']}%")
                 print(f"    💰 Valor actual: ${rec['current_value']:,.2f}")
                 print(f"    📈 G/P: {rec['gain_loss_pct']:+.1f}%")
+                print(f"    ⏱️ Días tenencia: {rec['dias_tenencia']}")
+                print(f"    📈 Rendimiento anualizado: {rec['rendimiento_anualizado']:+.0f}%")
                 print(f"    💡 Razón: {rec['primary_reason']}")
                 print()
         else:
@@ -103,7 +125,6 @@ class PortfolioManager:
                 print(f"    💰 Precio actual: ${opp['current_price']:,.2f}")
                 print(f"    🛒 Inversión sugerida: ${opp['suggested_investment']:,.0f}")
                 print(f"    📊 Cantidad: {opp['suggested_quantity']} nominales")
-                print(f"    🎯 Retorno esperado: {opp['expected_return']:+.1f}%")
                 print(f"    💡 Razones: {', '.join(opp['reasons'][:2])}")
                 print()
         else:
@@ -128,7 +149,7 @@ class PortfolioManager:
         if total_buy_investment > 0:
             print(f"    💰 Inversión sugerida: ${total_buy_investment:,.2f}")
         
-        # Cálculo de cash flow neto
+        # Cash flow neto
         available_after_sales = self.portfolio_data['dinero_disponible'] + total_sell_value
         print(f"💰 Dinero disponible actual: ${self.portfolio_data['dinero_disponible']:,.2f}")
         if total_sell_value > 0:
@@ -163,11 +184,12 @@ class PortfolioManager:
                     print(f"   {i}. {opp['ticker']} - ${opp['suggested_investment']:,.0f} "
                           f"({opp['suggested_quantity']} nominales)")
             
-            print(f"\n⚠️  IMPORTANTE:")
-            print(f"   • Estas son sugerencias basadas en análisis técnico")
-            print(f"   • Considere factores fundamentales y noticias")
-            print(f"   • No arriesgue más del 5-10% en una sola posición")
-            print(f"   • Use stop-loss para limitar pérdidas")
+            print(f"\n⚠️  CRITERIOS UTILIZADOS:")
+            print(f"   • Rendimiento >500% anualizado = Venta inmediata")
+            print(f"   • Rendimiento >200% anualizado = Toma de ganancias")
+            print(f"   • Rendimiento >100% anualizado = Considerar venta")
+            print(f"   • Rendimiento <-50% anualizado = Stop loss")
+            print(f"   • Diversificación: máximo 20% por posición")
             
         else:
             print("✅ No se requieren acciones inmediatas")
@@ -186,7 +208,6 @@ class PortfolioManager:
                     'ticker': rec['ticker'],
                     'tipo_recomendacion': 'VENTA',
                     'precio_actual': rec.get('current_price', 0),
-                    'precio_objetivo': None,
                     'cantidad_sugerida': None,
                     'monto_sugerido': rec.get('current_value', 0),
                     'motivo': rec.get('primary_reason', ''),
@@ -201,7 +222,6 @@ class PortfolioManager:
                     'ticker': opp['ticker'],
                     'tipo_recomendacion': 'COMPRA',
                     'precio_actual': opp['current_price'],
-                    'precio_objetivo': opp.get('target_price'),
                     'cantidad_sugerida': opp['suggested_quantity'],
                     'monto_sugerido': opp['suggested_investment'],
                     'motivo': ', '.join(opp['reasons'][:3]),
@@ -216,6 +236,28 @@ class PortfolioManager:
             
         except Exception as e:
             print(f"⚠️ Error guardando recomendaciones: {str(e)}")
+    
+    def _send_whatsapp_notification(self, sell_recs: list, buy_opps: list):
+        """Envía notificación por WhatsApp"""
+        try:
+            from scraper.notifications.whatsapp_notifier import WhatsAppNotifier
+            
+            notifier = WhatsAppNotifier()
+            if notifier.is_configured:
+                success = notifier.send_portfolio_recommendations(
+                    self.portfolio_data, sell_recs, buy_opps
+                )
+                if success:
+                    print("✅ Mensaje enviado por WhatsApp exitosamente")
+                else:
+                    print("⚠️ Error enviando mensaje de WhatsApp")
+            else:
+                print("📱 WhatsApp no configurado - saltando notificación")
+        
+        except ImportError:
+            print("📱 WhatsApp notifier no disponible - saltando notificación")
+        except Exception as e:
+            print(f"⚠️ Error enviando WhatsApp: {str(e)}")
     
     def get_portfolio_summary(self):
         """Devuelve resumen de la cartera para uso programático"""
