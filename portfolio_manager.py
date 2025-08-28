@@ -1,5 +1,5 @@
-# portfolio_manager.py - Motor principal con análisis financiero unificado
-from datetime import date
+# portfolio_manager.py - Integración con sistema avanzado corregido
+from datetime import date, datetime
 import sys
 from pathlib import Path
 
@@ -8,6 +8,7 @@ sys.path.append(str(Path(__file__).parent))
 
 from scraper.cartera_extractor import CarteraExtractor
 from analysis.financial_analyzer import FinancialAnalyzer
+from advanced_portfolio_manager import AdvancedPortfolioManager, ActionType
 from database.database_manager import SupabaseManager
 
 class PortfolioManager:
@@ -16,19 +17,13 @@ class PortfolioManager:
         self.db = SupabaseManager()
         self.cartera_extractor = CarteraExtractor(page)
         self.financial_analyzer = FinancialAnalyzer(self.db)
+        self.advanced_manager = AdvancedPortfolioManager(self.db, self.financial_analyzer)
         self.portfolio_data = None
     
     def run_complete_analysis(self):
-        """
-        Ejecuta análisis completo de la cartera:
-        1. Extrae datos de la cartera
-        2. Analiza posiciones existentes para venta (basado en rendimiento anualizado)
-        3. Busca oportunidades de compra
-        4. Genera recomendaciones
-        5. Envía notificación por WhatsApp
-        """
+        """Ejecuta análisis completo con sistema avanzado de gestión"""
         try:
-            print("\n🚀 INICIANDO ANÁLISIS COMPLETO DE CARTERA")
+            print("\n🚀 INICIANDO ANÁLISIS AVANZADO DE CARTERA")
             print("="*60)
             
             # 1. Extraer datos de la cartera
@@ -38,237 +33,306 @@ class PortfolioManager:
                 print("❌ No se pudieron extraer datos de la cartera")
                 return False
             
-            # 2. Análisis de posiciones existentes (decisiones de venta basadas en rendimiento anualizado)
-            print(f"\n📊 ANÁLISIS FINANCIERO DE CARTERA")
+            # 2. Análisis avanzado completo
+            print(f"\n📊 EJECUTANDO ANÁLISIS PROFESIONAL DE CARTERA")
             print("-" * 50)
             
-            sell_recommendations = self.financial_analyzer.analyze_portfolio_for_sell_decisions(
-                self.portfolio_data['activos']
+            advanced_analysis = self.advanced_manager.analyze_complete_portfolio(
+                self.portfolio_data,
+                self.portfolio_data['dinero_disponible']
             )
             
-            # Mostrar resultados del análisis
-            for asset in self.portfolio_data['activos']:
-                ticker = asset['ticker']
-                dias_tenencia = asset.get('dias_tenencia', 1)
-                ganancia_perdida_pct = asset['ganancia_perdida_porcentaje']
-                
-                if dias_tenencia > 0:
-                    rendimiento_anualizado = (ganancia_perdida_pct / dias_tenencia) * 365
-                else:
-                    rendimiento_anualizado = 0
-                
-                # Buscar si está en recomendaciones de venta
-                sell_rec = next((rec for rec in sell_recommendations if rec['ticker'] == ticker), None)
-                
-                if sell_rec:
-                    print(f"🔴 {ticker}: VENTA recomendada - {sell_rec['primary_reason']}")
-                else:
-                    print(f"🟢 {ticker}: MANTENER - Rendimiento {rendimiento_anualizado:.0f}% anualizado")
+            # 3. Mostrar resultados detallados
+            self._display_advanced_results(advanced_analysis)
             
-            # 3. Análisis de mercado (oportunidades de compra)
-            owned_tickers = [asset['ticker'] for asset in self.portfolio_data['activos']]
-            buy_opportunities = self.financial_analyzer.analyze_market_for_buy_opportunities(
-                self.portfolio_data['dinero_disponible'],
-                owned_tickers
-            )
+            # 4. Guardar análisis en BD
+            self._save_advanced_analysis_to_db(advanced_analysis)
             
-            # 4. Generar informe consolidado
-            self._generate_recommendations_report(sell_recommendations, buy_opportunities)
+            # 5. Enviar notificación avanzada
+            self._send_advanced_whatsapp_notification(advanced_analysis)
             
-            # 5. Guardar recomendaciones en BD
-            self._save_recommendations_to_db(sell_recommendations, buy_opportunities)
-            
-            # 6. Enviar notificación por WhatsApp
-            self._send_whatsapp_notification(sell_recommendations, buy_opportunities)
-            
-            print("\n✅ ANÁLISIS COMPLETO FINALIZADO")
+            print("\n✅ ANÁLISIS AVANZADO COMPLETADO")
             
             return True
             
         except Exception as e:
-            print(f"❌ Error en análisis completo: {str(e)}")
+            print(f"❌ Error en análisis avanzado: {str(e)}")
             import traceback
             traceback.print_exc()
             return False
     
-    def _generate_recommendations_report(self, sell_recs: list, buy_opps: list):
-        """Genera reporte consolidado de recomendaciones"""
+    def _display_advanced_results(self, analysis: dict):
+        """Muestra resultados del análisis avanzado"""
         
-        print("\n" + "="*60)
-        print("📋 REPORTE DE RECOMENDACIONES FINANCIERAS")
-        print("="*60)
+        positions = analysis['positions_analysis']
+        metrics = analysis['portfolio_metrics']
+        recommendations = analysis['recommendations']
+        risk_assessment = analysis['risk_assessment']
+        execution_plan = analysis['execution_plan']
         
-        # Resumen ejecutivo
-        self._print_executive_summary(sell_recs, buy_opps)
+        print(f"\n📊 MÉTRICAS AVANZADAS DE CARTERA")
+        print("="*50)
         
-        # Recomendaciones de venta
-        if sell_recs:
-            print("\n🔴 RECOMENDACIONES DE VENTA:")
-            print("-" * 40)
-            for rec in sell_recs:
-                print(f"📊 {rec['ticker']} - Confianza: {rec['confidence']}%")
-                print(f"    💰 Valor actual: ${rec['current_value']:,.2f}")
-                print(f"    📈 G/P: {rec['gain_loss_pct']:+.1f}%")
-                print(f"    ⏱️ Días tenencia: {rec['dias_tenencia']}")
-                print(f"    📈 Rendimiento anualizado: {rec['rendimiento_anualizado']:+.0f}%")
-                print(f"    💡 Razón: {rec['primary_reason']}")
-                print()
-        else:
-            print("\n🟢 No hay recomendaciones de venta por el momento")
+        # Métricas generales
+        print(f"💰 Valor total: ${metrics['total_value']:,.2f}")
+        print(f"📈 P&L total: ${metrics['total_pnl']:,.2f} ({metrics['total_pnl_pct']:+.1f}%)")
+        print(f"💵 Efectivo: {metrics['cash_allocation']:.1%}")
+        print(f"🏛️ Posiciones: {metrics['number_of_positions']}")
+        print(f"📊 Sharpe ratio: {metrics['risk_metrics']['sharpe_ratio']:.2f}")
+        print(f"⚠️ Riesgo concentración: {metrics['risk_metrics']['concentration_risk']:.2f}")
         
-        # Oportunidades de compra
-        if buy_opps:
-            print("\n🟢 OPORTUNIDADES DE COMPRA:")
-            print("-" * 40)
-            for opp in buy_opps[:3]:  # Top 3
-                print(f"📊 {opp['ticker']} - Confianza: {opp['confidence']}%")
-                print(f"    💰 Precio actual: ${opp['current_price']:,.2f}")
-                print(f"    🛒 Inversión sugerida: ${opp['suggested_investment']:,.0f}")
-                print(f"    📊 Cantidad: {opp['suggested_quantity']} nominales")
-                print(f"    💡 Razones: {', '.join(opp['reasons'][:2])}")
-                print()
-        else:
-            print("\n⚠️ No se encontraron oportunidades de compra atractivas")
-        
-        # Resumen de acción
-        self._print_action_summary(sell_recs, buy_opps)
-    
-    def _print_executive_summary(self, sell_recs: list, buy_opps: list):
-        """Imprime resumen ejecutivo"""
-        print("\n💼 RESUMEN EJECUTIVO:")
+        # Diversificación por sector
+        print(f"\n🏢 DIVERSIFICACIÓN SECTORIAL:")
         print("-" * 30)
+        for sector, allocation in metrics['sector_allocation'].items():
+            print(f"   {sector.title()}: {allocation:.1%}")
         
-        total_sell_value = sum(rec['current_value'] for rec in sell_recs)
-        total_buy_investment = sum(opp['suggested_investment'] for opp in buy_opps[:3])
+        # Evaluación de riesgo
+        print(f"\n⚠️ EVALUACIÓN DE RIESGO:")
+        print("-" * 30)
+        print(f"🎯 Nivel de riesgo: {risk_assessment['overall_risk'].upper()}")
+        print(f"📊 Score de riesgo: {risk_assessment['risk_score']}/10")
         
-        print(f"🔴 Activos a vender: {len(sell_recs)}")
-        if total_sell_value > 0:
-            print(f"    💰 Valor total a liberar: ${total_sell_value:,.2f}")
+        if risk_assessment['risk_factors']:
+            print(f"\n🚨 Factores de riesgo identificados:")
+            for factor in risk_assessment['risk_factors']:
+                print(f"   • {factor}")
         
-        print(f"🟢 Oportunidades encontradas: {len(buy_opps)}")
-        if total_buy_investment > 0:
-            print(f"    💰 Inversión sugerida: ${total_buy_investment:,.2f}")
+        # Recomendaciones por estrategia
+        print(f"\n📋 RECOMENDACIONES ESTRATÉGICAS")
+        print("="*50)
         
-        # Cash flow neto
-        available_after_sales = self.portfolio_data['dinero_disponible'] + total_sell_value
-        print(f"💰 Dinero disponible actual: ${self.portfolio_data['dinero_disponible']:,.2f}")
-        if total_sell_value > 0:
-            print(f"💰 Dinero después de ventas: ${available_after_sales:,.2f}")
+        if not recommendations:
+            print("✅ No hay recomendaciones en este momento")
+            return
         
-        # Status general de la cartera
-        total_gain_loss = self.portfolio_data['ganancia_perdida_total']
-        total_invested = self.portfolio_data['total_invertido']
+        # Agrupar por tipo de acción
+        actions_by_type = {}
+        for rec in recommendations:
+            action_type = rec.action.value
+            if action_type not in actions_by_type:
+                actions_by_type[action_type] = []
+            actions_by_type[action_type].append(rec)
         
-        if total_invested > 0:
-            portfolio_return = (total_gain_loss / total_invested) * 100
-            emoji = "📈" if portfolio_return > 0 else "📉"
-            print(f"{emoji} Rendimiento cartera: {portfolio_return:+.2f}%")
+        # Mostrar por categoría
+        action_emojis = {
+            'stop_loss': '🚨',
+            'trailing_stop': '📉',
+            'toma_ganancias': '💰',
+            'promedio_a_la_baja': '📊',
+            'rebalanceo': '⚖️',
+            'compra_inicial': '🟢',
+            'compra_momentum': '⚡',
+            'reducir_posicion': '⚠️'
+        }
+        
+        for action_type, recs in actions_by_type.items():
+            emoji = action_emojis.get(action_type, '📈')
+            print(f"\n{emoji} {action_type.replace('_', ' ').upper()} ({len(recs)} recomendaciones):")
+            print("-" * 40)
+            
+            for rec in recs:
+                investment = rec.suggested_shares * rec.target_price
+                print(f"📊 {rec.ticker} - Confianza: {rec.confidence:.0f}%")
+                print(f"   💰 Acción: {rec.suggested_shares} nominales a ${rec.target_price:,.2f}")
+                print(f"   💵 Inversión: ${investment:,.0f}")
+                print(f"   💡 Razón: {rec.reasons[0] if rec.reasons else 'N/A'}")
+                
+                if rec.stop_loss_price:
+                    print(f"   🚨 Stop loss: ${rec.stop_loss_price:,.2f}")
+                if rec.take_profit_price:
+                    print(f"   🎯 Take profit: ${rec.take_profit_price:,.2f}")
+                
+                print(f"   ⚠️ Riesgo: {rec.risk_assessment}")
+                print()
+        
+        # Plan de ejecución
+        print(f"\n🎯 PLAN DE EJECUCIÓN")
+        print("="*50)
+        
+        if execution_plan['immediate_actions']:
+            print(f"🚨 ACCIONES INMEDIATAS (24 horas):")
+            for action in execution_plan['immediate_actions']:
+                print(f"   • {action['ticker']}: {action['action']} {action['shares']} nominales")
+        
+        if execution_plan['planned_actions']:
+            print(f"\n📅 ACCIONES PLANIFICADAS (esta semana):")
+            for action in execution_plan['planned_actions']:
+                print(f"   • {action['ticker']}: {action['action']} {action['shares']} nominales")
+        
+        if execution_plan['monitoring_alerts']:
+            print(f"\n👁️ MONITOREAR (ejecutar si condiciones persisten):")
+            for action in execution_plan['monitoring_alerts']:
+                print(f"   • {action['ticker']}: {action['action']} {action['shares']} nominales")
     
-    def _print_action_summary(self, sell_recs: list, buy_opps: list):
-        """Imprime resumen de acciones recomendadas"""
-        print("\n🎯 PLAN DE ACCIÓN RECOMENDADO:")
-        print("-" * 40)
-        
-        if sell_recs or buy_opps:
-            print("📋 Pasos sugeridos:")
-            
-            if sell_recs:
-                print("1. 🔴 VENDER:")
-                for i, rec in enumerate(sell_recs, 1):
-                    print(f"   {i}. {rec['ticker']} - {rec['primary_reason']}")
-            
-            if buy_opps:
-                start_num = len(sell_recs) + 1
-                print(f"{start_num}. 🟢 COMPRAR:")
-                for i, opp in enumerate(buy_opps[:3], 1):
-                    print(f"   {i}. {opp['ticker']} - ${opp['suggested_investment']:,.0f} "
-                          f"({opp['suggested_quantity']} nominales)")
-            
-            print(f"\n⚠️  CRITERIOS UTILIZADOS:")
-            print(f"   • Rendimiento >500% anualizado = Venta inmediata")
-            print(f"   • Rendimiento >200% anualizado = Toma de ganancias")
-            print(f"   • Rendimiento >100% anualizado = Considerar venta")
-            print(f"   • Rendimiento <-50% anualizado = Stop loss")
-            print(f"   • Diversificación: máximo 20% por posición")
-            
-        else:
-            print("✅ No se requieren acciones inmediatas")
-            print("📊 Continúe monitoreando la cartera")
-    
-    def _save_recommendations_to_db(self, sell_recs: list, buy_opps: list):
-        """Guarda las recomendaciones en la base de datos"""
+    def _save_advanced_analysis_to_db(self, analysis: dict):
+        """Guarda análisis avanzado en la base de datos"""
         try:
             today = date.today()
+            
+            # Guardar métricas de cartera
+            portfolio_metrics = {
+                'fecha': today.isoformat(),
+                'valor_total': analysis['portfolio_metrics']['total_value'],
+                'pnl_total': analysis['portfolio_metrics']['total_pnl'],
+                'pnl_porcentaje': analysis['portfolio_metrics']['total_pnl_pct'],
+                'cash_allocation': analysis['portfolio_metrics']['cash_allocation'],
+                'num_posiciones': analysis['portfolio_metrics']['number_of_positions'],
+                'sharpe_ratio': analysis['portfolio_metrics']['risk_metrics']['sharpe_ratio'],
+                'concentration_risk': analysis['portfolio_metrics']['risk_metrics']['concentration_risk'],
+                'risk_level': analysis['risk_assessment']['overall_risk'],
+                'risk_score': analysis['risk_assessment']['risk_score']
+            }
+            
+            self.db.supabase.table('portfolio_metrics_advanced').upsert(portfolio_metrics).execute()
+            
+            # Guardar recomendaciones avanzadas
             recommendations_data = []
-            
-            # Recomendaciones de venta
-            for rec in sell_recs:
+            for rec in analysis['recommendations']:
                 rec_data = {
                     'fecha': today.isoformat(),
-                    'ticker': rec['ticker'],
-                    'tipo_recomendacion': 'VENTA',
-                    'precio_actual': rec.get('current_price', 0),
-                    'cantidad_sugerida': None,
-                    'monto_sugerido': rec.get('current_value', 0),
-                    'motivo': rec.get('primary_reason', ''),
-                    'confianza_porcentaje': rec.get('confidence', 0)
+                    'ticker': rec.ticker,
+                    'action_type': rec.action.value,
+                    'suggested_shares': rec.suggested_shares,
+                    'target_price': rec.target_price,
+                    'confidence': int(rec.confidence),
+                    'primary_reason': rec.reasons[0] if rec.reasons else '',
+                    'risk_assessment': rec.risk_assessment,
+                    'stop_loss_price': rec.stop_loss_price,
+                    'take_profit_price': rec.take_profit_price
                 }
                 recommendations_data.append(rec_data)
             
-            # Oportunidades de compra
-            for opp in buy_opps[:5]:  # Guardar top 5
-                rec_data = {
-                    'fecha': today.isoformat(),
-                    'ticker': opp['ticker'],
-                    'tipo_recomendacion': 'COMPRA',
-                    'precio_actual': opp['current_price'],
-                    'cantidad_sugerida': opp['suggested_quantity'],
-                    'monto_sugerido': opp['suggested_investment'],
-                    'motivo': ', '.join(opp['reasons'][:3]),
-                    'confianza_porcentaje': opp['confidence']
-                }
-                recommendations_data.append(rec_data)
-            
-            # Insertar en BD
             if recommendations_data:
-                result = self.db.supabase.table('recomendaciones').insert(recommendations_data).execute()
-                print(f"✅ {len(recommendations_data)} recomendaciones guardadas en BD")
+                self.db.supabase.table('advanced_recommendations').insert(recommendations_data).execute()
+                print(f"✅ {len(recommendations_data)} recomendaciones avanzadas guardadas en BD")
             
         except Exception as e:
-            print(f"⚠️ Error guardando recomendaciones: {str(e)}")
+            print(f"⚠️ Error guardando análisis avanzado: {str(e)}")
     
-    def _send_whatsapp_notification(self, sell_recs: list, buy_opps: list):
-        """Envía notificación por WhatsApp"""
+    def _send_advanced_whatsapp_notification(self, analysis: dict):
+        """Envía notificación avanzada por WhatsApp"""
         try:
             from scraper.notifications.whatsapp_notifier import WhatsAppNotifier
             
             notifier = WhatsAppNotifier()
             if notifier.is_configured:
-                success = notifier.send_portfolio_recommendations(
-                    self.portfolio_data, sell_recs, buy_opps
-                )
+                message = self._format_advanced_whatsapp_message(analysis)
+                success = notifier.send_message(message)
                 if success:
-                    print("✅ Mensaje enviado por WhatsApp exitosamente")
+                    print("✅ Notificación avanzada enviada por WhatsApp")
                 else:
-                    print("⚠️ Error enviando mensaje de WhatsApp")
+                    print("⚠️ Error enviando notificación avanzada")
             else:
                 print("📱 WhatsApp no configurado - saltando notificación")
         
         except ImportError:
-            print("📱 WhatsApp notifier no disponible - saltando notificación")
+            print("📱 WhatsApp notifier no disponible")
         except Exception as e:
-            print(f"⚠️ Error enviando WhatsApp: {str(e)}")
+            print(f"⚠️ Error enviando WhatsApp avanzado: {str(e)}")
+    
+    def _format_advanced_whatsapp_message(self, analysis: dict) -> str:
+        """Formatea mensaje avanzado para WhatsApp con acciones específicas"""
+        timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
+        metrics = analysis['portfolio_metrics']
+        risk = analysis['risk_assessment']
+        recommendations = analysis['recommendations']
+        execution_plan = analysis['execution_plan']
+        
+        message = f"📊 *ANÁLISIS BALANZ* - {timestamp}\n"
+        message += "="*30 + "\n\n"
+        
+        # Resumen ejecutivo compacto
+        message += f"💼 *RESUMEN*\n"
+        message += f"💰 Valor: ${metrics['total_value']:,.0f}\n"
+        message += f"📈 P&L: ${metrics['total_pnl']:,.0f} ({metrics['total_pnl_pct']:+.1f}%)\n"
+        message += f"⚠️ Riesgo: {risk['overall_risk'].upper()}\n\n"
+        
+        # ACCIONES INMEDIATAS (más críticas)
+        immediate_actions = execution_plan.get('immediate_actions', [])
+        if immediate_actions:
+            message += f"🚨 *URGENTE - HACER HOY*\n"
+            message += "-"*20 + "\n"
+            for action in immediate_actions:
+                if 'stop_loss' in action['action'] or 'trailing_stop' in action['action']:
+                    message += f"🔴 VENDER {action['ticker']}: {action['shares']} nominales\n"
+                    message += f"   💰 A ${action['price_target']:,.0f} c/u\n"
+                else:
+                    message += f"• {action['ticker']}: {action['action']} {action['shares']} nominales\n"
+            message += "\n"
+        
+        # ACCIONES PLANIFICADAS (esta semana)
+        planned_actions = execution_plan.get('planned_actions', [])
+        if planned_actions:
+            message += f"📅 *HACER ESTA SEMANA*\n"
+            message += "-"*20 + "\n"
+            
+            # Separar ventas y compras para mayor claridad
+            sales = [a for a in planned_actions if 'rebalanceo' in a['action'] or 'reducir' in a['action']]
+            buys = [a for a in planned_actions if 'compra' in a['action']]
+            
+            if sales:
+                message += f"🔴 *VENDER:*\n"
+                for action in sales:
+                    message += f"• {action['ticker']}: {action['shares']} nominales\n"
+                    message += f"  💰 ~${action['shares'] * action['price_target']:,.0f}\n"
+            
+            if buys:
+                message += f"🟢 *COMPRAR:*\n"
+                for action in buys:
+                    message += f"• {action['ticker']}: {action['shares']} nominales\n"
+                    message += f"  💰 ~${action['shares'] * action['price_target']:,.0f}\n"
+            
+            message += "\n"
+        
+        # OPORTUNIDADES DE MONITOREO (menos críticas)
+        monitoring_alerts = execution_plan.get('monitoring_alerts', [])
+        if monitoring_alerts:
+            message += f"👁️ *MONITOREAR*\n"
+            message += "-"*15 + "\n"
+            for action in monitoring_alerts[:3]:  # Solo top 3
+                if 'compra' in action['action']:
+                    message += f"📊 {action['ticker']}: Comprar {action['shares']} si persiste oportunidad\n"
+            message += "\n"
+        
+        # Resumen de efectivo después de operaciones
+        cash_after_sales = metrics.get('cash_allocation', 0) * metrics['total_value']
+        planned_sales_value = sum(a['shares'] * a['price_target'] for a in planned_actions if 'rebalanceo' in a['action'] or 'reducir' in a['action'])
+        
+        if planned_sales_value > 0:
+            total_cash_after = cash_after_sales + planned_sales_value
+            message += f"💵 *EFECTIVO DESPUÉS DE VENTAS*\n"
+            message += f"Disponible: ~${total_cash_after:,.0f}\n\n"
+        
+        # Factores de riesgo críticos
+        if risk['risk_factors']:
+            message += f"⚠️ *ALERTAS*\n"
+            message += "-"*10 + "\n"
+            for factor in risk['risk_factors'][:2]:  # Solo top 2
+                if 'posición' in factor.lower():
+                    message += f"• {factor}\n"
+                elif 'concentración' in factor.lower():
+                    message += f"• Diversificar más\n"
+            message += "\n"
+        
+        message += f"🤖 _Sistema automatizado_\n"
+        message += f"📞 _Confirmar antes de ejecutar_"
+        
+        return message
     
     def get_portfolio_summary(self):
-        """Devuelve resumen de la cartera para uso programático"""
+        """Devuelve resumen avanzado de la cartera"""
         if not self.portfolio_data:
             return None
         
         return {
-            'dinero_disponible': self.portfolio_data['dinero_disponible'],
-            'valor_total': self.portfolio_data['valor_total_cartera'],
-            'total_invertido': self.portfolio_data['total_invertido'],
-            'ganancia_perdida': self.portfolio_data['ganancia_perdida_total'],
-            'cantidad_activos': len(self.portfolio_data['activos']),
-            'rendimiento_porcentaje': (self.portfolio_data['ganancia_perdida_total'] / self.portfolio_data['total_invertido'] * 100) if self.portfolio_data['total_invertido'] > 0 else 0
+            'basic_metrics': {
+                'dinero_disponible': self.portfolio_data['dinero_disponible'],
+                'valor_total': self.portfolio_data['valor_total_cartera'],
+                'total_invertido': self.portfolio_data['total_invertido'],
+                'ganancia_perdida': self.portfolio_data['ganancia_perdida_total'],
+                'cantidad_activos': len(self.portfolio_data['activos'])
+            },
+            'advanced_available': True,
+            'last_analysis': datetime.now().isoformat()
         }

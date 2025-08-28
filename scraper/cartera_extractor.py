@@ -1,4 +1,4 @@
-# scraper/cartera_extractor.py - Con selector corregido para DPT
+# scraper/cartera_extractor.py - Corregido para detectar cualquier activo
 import pandas as pd
 import time
 from utils.helpers import clean_price_text
@@ -43,7 +43,7 @@ class CarteraExtractor:
             return None
     
     def _get_dinero_disponible(self):
-        """Extrae el dinero disponible desde /app/home usando selector exacto"""
+        """Extrae el dinero disponible desde /app/home"""
         try:
             print("💰 Obteniendo dinero disponible...")
             
@@ -54,7 +54,6 @@ class CarteraExtractor:
                 time.sleep(5)
             
             try:
-                # Buscar el elemento app-hide-money que contiene el dinero disponible
                 elementos_dinero = self.page.locator('app-hide-money').all()
                 
                 print(f"🔍 Elementos app-hide-money encontrados: {len(elementos_dinero)}")
@@ -83,7 +82,7 @@ class CarteraExtractor:
             return 0
     
     def _extract_portfolio_details(self):
-        """Extrae detalles completos de la cartera usando selectores exactos"""
+        """Extrae detalles completos de la cartera SIN restricciones de tickers"""
         try:
             print("📊 Navegando a mi cartera...")
             
@@ -103,11 +102,11 @@ class CarteraExtractor:
             return {'activos': []}
     
     def _get_activos_from_table(self):
-        """Extrae activos directamente usando método más robusto"""
+        """Extrae activos SIN lista hardcodeada - detecta cualquier ticker válido"""
         try:
             activos = []
             
-            # Usar método genérico directo que sabemos que funciona
+            # Usar método genérico directo
             filas = self.page.locator('tr').all()
             
             print(f"📊 Filas totales encontradas: {len(filas)}")
@@ -128,24 +127,23 @@ class CarteraExtractor:
                     
                     print(f"   Fila {i}: {textos}")
                     
-                    # Verificar si es una fila de datos de ticker
-                    tickers_conocidos = ['AMZN', 'BIOX', 'GLOB', 'AAPL', 'MSFT', 'GOOGL', 'TSLA', 'NVDA', 'META', 'NFLX']
-                    es_fila_datos = (len(textos) >= 8 and 
-                                   any(ticker in textos[0] for ticker in tickers_conocidos) and
-                                   textos[0] not in ['Ticker', 'Totales'])
+                    # LÓGICA CORREGIDA: Detectar filas válidas sin lista hardcodeada
+                    es_fila_datos = self._is_valid_ticker_row(textos)
                     
                     if es_fila_datos:
                         ticker = textos[0].strip()
                         
                         try:
                             nominales = int(textos[1]) if textos[1].isdigit() else 0
+                            
+                            # Limpiar valores monetarios
                             valor_actual_str = textos[4].replace('$', '').replace(' ', '').strip()
                             valor_inicial_str = textos[5].replace('$', '').replace(' ', '').strip()
                             
                             valor_actual_total = clean_price_text(valor_actual_str)
                             valor_inicial_total = clean_price_text(valor_inicial_str)
                             
-                            # EXTRAER DÍAS REALES usando método más robusto
+                            # Extraer días de tenencia
                             dias_tenencia = self._extract_days_from_row(fila, ticker, textos)
                             
                             print(f"   📊 Procesando: {ticker} - Nominales: {nominales} - DPT: {dias_tenencia}")
@@ -184,8 +182,36 @@ class CarteraExtractor:
             print(f"❌ Error obteniendo activos de tabla: {str(e)}")
             return []
     
+    def _is_valid_ticker_row(self, textos):
+        """Determina si una fila contiene datos válidos de un ticker SIN lista hardcodeada"""
+        if len(textos) < 8:
+            return False
+        
+        ticker = textos[0].strip()
+        nominales = textos[1].strip()
+        precio = textos[2].strip()
+        valor_actual = textos[4].strip()
+        valor_inicial = textos[5].strip()
+        
+        # Criterios para identificar fila válida:
+        return (
+            # 1. Ticker no es header ni total
+            ticker not in ['Ticker', 'Totales', ''] and
+            len(ticker) >= 2 and len(ticker) <= 6 and  # Longitud típica de ticker
+            ticker.isalpha() or any(c.isdigit() for c in ticker) and  # Solo letras o alphanúmerico
+            
+            # 2. Nominales es número
+            nominales.isdigit() and int(nominales) > 0 and
+            
+            # 3. Precio tiene formato monetario
+            '$' in precio and
+            
+            # 4. Valores actuales e iniciales tienen formato monetario
+            '$' in valor_actual and '$' in valor_inicial
+        )
+    
     def _extract_days_from_row(self, fila, ticker, textos):
-        """Extrae días de tenencia usando múltiples métodos basados en el HTML real"""
+        """Extrae días de tenencia usando múltiples métodos"""
         try:
             print(f"🔍 Extrayendo días de tenencia para {ticker}...")
             
@@ -195,64 +221,48 @@ class CarteraExtractor:
                 print(f"   ✅ Días desde posición 8: {dias}")
                 return dias
             
-            # MÉTODO 2: Buscar spans con class ng-star-inserted y contenido numérico
+            # MÉTODO 2: Buscar spans con contenido numérico que no sea nominales ni precios
             try:
-                spans_ng = fila.locator('td.ng-star-inserted span').all()
-                for span in spans_ng:
-                    texto = span.text_content().strip()
-                    if texto.isdigit() and 1 <= int(texto) <= 9999:
-                        # Verificar que no sea nominales (15) ni otros datos conocidos
-                        if texto != textos[1]:  # No es nominales
-                            dias = int(texto)
-                            print(f"   ✅ Días desde span ng-star-inserted: {dias}")
-                            return dias
-            except Exception as e:
-                print(f"   ⚠️ Método 2 falló: {str(e)}")
-            
-            # MÉTODO 3: Buscar cualquier span con número que no sea precio ni nominales
-            try:
-                all_spans = fila.locator('span').all()
-                for span in all_spans:
+                spans = fila.locator('span').all()
+                for span in spans:
                     texto = span.text_content().strip()
                     if texto.isdigit():
                         numero = int(texto)
                         # Filtrar valores que claramente no son días
-                        if 1 <= numero <= 999 and texto != textos[1]:  # No nominales
+                        if 1 <= numero <= 9999 and texto != textos[1]:  # No es nominales
                             # Verificar que no sea parte de un precio
                             parent_text = span.locator('xpath=..').text_content()
-                            if '$' not in parent_text and ',' not in parent_text and '.' not in parent_text:
+                            if '$' not in parent_text and ',' not in parent_text:
                                 dias = numero
-                                print(f"   ✅ Días desde span genérico: {dias}")
+                                print(f"   ✅ Días desde span: {dias}")
+                                return dias
+            except Exception as e:
+                print(f"   ⚠️ Método 2 falló: {str(e)}")
+            
+            # MÉTODO 3: Buscar usando selector específico para DPT
+            try:
+                dpt_cells = fila.locator('td.text-size-4.ng-star-inserted').all()
+                for cell in dpt_cells:
+                    spans_in_cell = cell.locator('span').all()
+                    for span in spans_in_cell:
+                        texto = span.text_content().strip()
+                        if texto.isdigit() and 1 <= int(texto) <= 999:
+                            if texto != textos[1]:  # No es nominales
+                                dias = int(texto)
+                                print(f"   ✅ Días desde método 3: {dias}")
                                 return dias
             except Exception as e:
                 print(f"   ⚠️ Método 3 falló: {str(e)}")
             
-            # MÉTODO 4: Buscar usando el selector exacto del HTML que viste
-            try:
-                # Basado en tu HTML: td class="text-size-4 ng-star-inserted" > span
-                dpt_cells = fila.locator('td.text-size-4.ng-star-inserted').all()
-                for cell in dpt_cells:
-                    span = cell.locator('span').first
-                    if span.count() > 0:
-                        texto = span.text_content().strip()
-                        if texto.isdigit() and 1 <= int(texto) <= 999:
-                            # Verificar que no sea el mismo que nominales
-                            if texto != textos[1]:
-                                dias = int(texto)
-                                print(f"   ✅ Días desde método 4: {dias}")
-                                return dias
-            except Exception as e:
-                print(f"   ⚠️ Método 4 falló: {str(e)}")
-            
             print(f"   ⚠️ No se encontraron días para {ticker} - usando 1")
-            return 1  # Mínimo 1 día para evitar división por cero
+            return 1  # Default
             
         except Exception as e:
             print(f"⚠️ Error extrayendo días de {ticker}: {str(e)}")
             return 1
     
     def _print_portfolio_summary(self, cartera_data):
-        """Imprime un resumen de la cartera con valores correctos incluyendo días"""
+        """Imprime un resumen de la cartera"""
         print(f"\n💼 RESUMEN DE CARTERA")
         print("=" * 50)
         print(f"💰 Dinero disponible: ${cartera_data['dinero_disponible']:,.2f}")
