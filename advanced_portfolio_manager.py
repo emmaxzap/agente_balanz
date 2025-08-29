@@ -1,4 +1,4 @@
-# advanced_portfolio_manager.py - Sistema completo de gestión profesional de carteras
+# advanced_portfolio_manager.py - Sistema profesional con análisis de corto plazo
 import pandas as pd
 import numpy as np
 from datetime import date, timedelta, datetime
@@ -49,22 +49,32 @@ class AdvancedPortfolioManager:
         self.db = db_manager
         self.analyzer = financial_analyzer
         
-        # Configuración de gestión de riesgo
+        # Configuración profesional ajustada para diferentes plazos
         self.risk_config = {
-            'max_position_size': 0.15,          # Máximo 15% por posición
-            'max_sector_allocation': 0.25,      # Máximo 25% por sector
-            'max_drawdown_per_position': 0.40,  # Stop loss a -40%
-            'trailing_stop_activation': 0.20,   # Activar trailing stop con +20%
-            'trailing_stop_distance': 0.10,     # Trailing stop a -10% del máximo
-            'profit_taking_levels': [0.30, 0.50, 0.75],  # Toma ganancias graduales
-            'averaging_down_max_attempts': 3,    # Máximo 3 compras adicionales
-            'averaging_down_drop_threshold': 0.15,  # Comprar si baja >15%
-            'rebalance_threshold': 0.05,         # Rebalancear si desviación >5%
-            'momentum_confirmation_days': 5,     # Días para confirmar momentum
-            'volatility_adjustment_factor': 1.2  # Factor de ajuste por volatilidad
+            # Posiciones nuevas (0-3 días) - MÁS CONSERVADOR
+            'new_position_stop_loss': 0.08,        # Stop loss -8% para posiciones nuevas
+            'new_position_profit_taking': 0.15,    # Tomar ganancias a +15% en posiciones nuevas
+            'new_position_max_risk': 0.12,         # Máximo 12% por posición nueva
+            
+            # Posiciones establecidas (4-30 días) - MODERADO
+            'established_stop_loss': 0.12,         # Stop loss -12% para posiciones establecidas
+            'established_profit_taking': 0.25,     # Tomar ganancias a +25%
+            'established_max_risk': 0.15,          # Máximo 15% por posición establecida
+            
+            # Posiciones maduras (30+ días) - MÁS FLEXIBLE
+            'mature_stop_loss': 0.20,              # Stop loss -20% para posiciones maduras
+            'mature_profit_taking': 0.40,          # Tomar ganancias a +40%
+            'mature_max_risk': 0.20,               # Máximo 20% por posición madura
+            
+            # Configuración general
+            'max_sector_allocation': 0.30,         # Máximo 30% por sector
+            'rebalance_threshold': 0.05,           # Rebalancear si desviación >5%
+            'momentum_confirmation_days': 3,       # 3 días para confirmar momentum en corto plazo
+            'technical_analysis_weight': 0.7,      # 70% peso al análisis técnico vs fundamental
+            'daily_volatility_threshold': 0.05,    # 5% volatilidad diaria máxima aceptable
         }
         
-        # Sectores para diversificación
+        # Sectores mejorados
         self.sector_mapping = {
             # Tecnología
             'AAPL': 'tecnologia', 'MSFT': 'tecnologia', 'GOOGL': 'tecnologia', 'AMZN': 'tecnologia',
@@ -78,83 +88,85 @@ class AdvancedPortfolioManager:
             
             # Consumo
             'KO': 'consumo', 'PEP': 'consumo', 'WMT': 'consumo', 'PG': 'consumo',
+            'COME': 'consumo', 'ALUA': 'industrial', 
             
             # Salud
             'JNJ': 'salud', 'UNH': 'salud', 'PFE': 'salud', 'ABBV': 'salud',
             
+            # Minería y Materiales
+            'LOMA': 'mineria', 'EDN': 'mineria', 'CEPU': 'mineria',
+            
+            # Servicios Públicos
+            'METR': 'servicios_publicos', 'TECO2': 'telecom', 'TEF': 'telecom',
+            
             # Industrial
             'MMM': 'industrial', 'CAT': 'industrial', 'BA': 'industrial',
-            
-            # Telecom
-            'TECO2': 'telecom', 'TEF': 'telecom',
-            
-            # Default para no clasificados
         }
     
     def analyze_complete_portfolio(self, portfolio_data: Dict, available_cash: float) -> Dict:
-        """Análisis completo de cartera con todas las estrategias profesionales"""
+        """Análisis completo profesional con manejo inteligente de diferentes plazos"""
         
-        # 1. Analizar posiciones actuales
-        positions = self._analyze_current_positions(portfolio_data['activos'])
+        # 1. Analizar posiciones con criterios específicos por plazo
+        positions = self._analyze_current_positions_with_timeframe(portfolio_data['activos'])
         
         # 2. Calcular métricas de cartera
         portfolio_metrics = self._calculate_portfolio_metrics(positions, available_cash)
         
-        # 3. Generar recomendaciones por estrategia
+        # 3. Análisis técnico intensivo para posiciones de corto plazo
+        technical_analysis = self._perform_technical_analysis(positions)
+        
+        # 4. Generar recomendaciones inteligentes por plazo
         recommendations = {
-            'averaging_down': self._analyze_averaging_down_opportunities(positions),
-            'profit_taking': self._analyze_profit_taking_opportunities(positions),
-            'stop_losses': self._analyze_stop_loss_triggers(positions),
-            'trailing_stops': self._analyze_trailing_stops(positions),
-            'momentum_plays': self._analyze_momentum_opportunities(available_cash, positions),
-            'rebalancing': self._analyze_rebalancing_needs(positions, portfolio_metrics),
+            'short_term_trades': self._analyze_short_term_opportunities(positions, technical_analysis),
+            'profit_taking': self._analyze_intelligent_profit_taking(positions, technical_analysis),
+            'stop_losses': self._analyze_dynamic_stop_losses(positions, technical_analysis),
+            'rebalancing': self._analyze_smart_rebalancing(positions, portfolio_metrics),
             'new_positions': self._analyze_new_position_opportunities(available_cash, positions),
-            'risk_reduction': self._analyze_risk_reduction_needs(positions, portfolio_metrics)
         }
         
-        # 4. Consolidar y priorizar recomendaciones
-        consolidated_recs = self._consolidate_recommendations(recommendations)
+        # 5. Consolidar con lógica profesional
+        consolidated_recs = self._consolidate_with_professional_logic(recommendations, technical_analysis)
         
-        # 5. Verificar límites de riesgo
-        risk_adjusted_recs = self._apply_risk_limits(consolidated_recs, portfolio_metrics, available_cash)
+        # 6. Aplicar límites de riesgo dinámicos
+        risk_adjusted_recs = self._apply_dynamic_risk_limits(consolidated_recs, portfolio_metrics, available_cash)
         
         return {
             'positions_analysis': positions,
             'portfolio_metrics': portfolio_metrics,
+            'technical_analysis': technical_analysis,
             'recommendations': risk_adjusted_recs,
-            'risk_assessment': self._generate_risk_assessment(positions, portfolio_metrics),
-            'execution_plan': self._generate_execution_plan(risk_adjusted_recs)
+            'risk_assessment': self._generate_professional_risk_assessment(positions, portfolio_metrics),
+            'execution_plan': self._generate_intelligent_execution_plan(risk_adjusted_recs)
         }
     
-    def _analyze_current_positions(self, assets: List[Dict]) -> List[PositionAnalysis]:
-        """Analiza las posiciones actuales con métricas avanzadas"""
+    def _analyze_current_positions_with_timeframe(self, assets: List[Dict]) -> List[PositionAnalysis]:
+        """Análisis de posiciones considerando diferentes marcos temporales"""
         positions = []
         
         for asset in assets:
             ticker = asset['ticker']
+            days_held = max(asset.get('dias_tenencia', 0), 0)  # Asegurar que no sea negativo
             
-            # Obtener datos históricos para análisis de volatilidad y tendencia
-            historical_data = self.analyzer._get_historical_data(ticker, days=90)
-            
-            # Calcular volatilidad histórica
-            if not historical_data.empty:
-                returns = historical_data['precio_cierre'].pct_change().dropna()
-                volatility = returns.std() * np.sqrt(252) * 100  # Volatilidad anualizada
-                beta = self._calculate_beta(returns)  # Beta vs mercado (simplificado)
+            # Obtener datos históricos específicos según plazo
+            if days_held <= 3:
+                # Posiciones nuevas: análisis intradiario intensivo
+                historical_data = self.analyzer._get_historical_data(ticker, days=7)
+                timeframe_category = 'new'
+            elif days_held <= 30:
+                # Posiciones establecidas: análisis semanal
+                historical_data = self.analyzer._get_historical_data(ticker, days=30)
+                timeframe_category = 'established'
             else:
-                volatility = 25.0  # Default
-                beta = 1.0
+                # Posiciones maduras: análisis mensual
+                historical_data = self.analyzer._get_historical_data(ticker, days=90)
+                timeframe_category = 'mature'
             
-            # Determinar sector
-            sector = self.sector_mapping.get(ticker, 'otros')
-            
-            # Calcular score de riesgo
-            risk_score = self._calculate_risk_score(
-                asset['ganancia_perdida_porcentaje'],
-                volatility,
-                beta,
-                asset.get('dias_tenencia', 1)
+            # Calcular métricas específicas por timeframe
+            risk_score = self._calculate_timeframe_risk_score(
+                asset, historical_data, timeframe_category
             )
+            
+            sector = self.sector_mapping.get(ticker, 'otros')
             
             position = PositionAnalysis(
                 ticker=ticker,
@@ -164,7 +176,7 @@ class AdvancedPortfolioManager:
                 current_value=asset['valor_actual_total'],
                 unrealized_pnl=asset['ganancia_perdida_total'],
                 unrealized_pnl_pct=asset['ganancia_perdida_porcentaje'],
-                days_held=asset.get('dias_tenencia', 1),
+                days_held=days_held,
                 sector=sector,
                 position_size_pct=0,  # Se calculará después
                 risk_score=risk_score
@@ -172,13 +184,448 @@ class AdvancedPortfolioManager:
             
             positions.append(position)
         
-        # Calcular tamaños relativos de posición
+        # Calcular tamaños relativos
         total_value = sum(p.current_value for p in positions)
         if total_value > 0:
             for position in positions:
                 position.position_size_pct = position.current_value / total_value
         
         return positions
+    
+    def _calculate_timeframe_risk_score(self, asset: Dict, historical_data: pd.DataFrame, timeframe: str) -> float:
+        """Calcula score de riesgo específico según el marco temporal"""
+        base_risk = 5.0
+        pnl_pct = asset['ganancia_perdida_porcentaje']
+        days_held = asset.get('dias_tenencia', 0)
+        
+        if timeframe == 'new':
+            # Posiciones nuevas: más peso a volatilidad reciente
+            if abs(pnl_pct) > 8:  # Alta volatilidad inicial
+                base_risk += 2.0
+            if days_held == 0:  # Compra del mismo día
+                base_risk += 1.0
+                
+        elif timeframe == 'established':
+            # Posiciones establecidas: balance entre momentum y reversión
+            if pnl_pct < -10:  # Pérdida significativa
+                base_risk += 1.5
+            elif pnl_pct > 20:  # Ganancia muy rápida
+                base_risk += 0.5
+                
+        else:  # mature
+            # Posiciones maduras: más tolerancia a volatilidad
+            if pnl_pct < -25:
+                base_risk += 2.0
+            elif pnl_pct > 50:
+                base_risk += 1.0
+        
+        # Ajustar por datos históricos disponibles
+        if not historical_data.empty and len(historical_data) >= 5:
+            volatility = historical_data['precio_cierre'].pct_change().std() * 100
+            if volatility > 10:  # Alta volatilidad histórica
+                base_risk += 1.0
+        
+        return min(10.0, max(0.0, base_risk))
+    
+    def _perform_technical_analysis(self, positions: List[PositionAnalysis]) -> Dict:
+        """Análisis técnico intensivo para cada posición"""
+        technical_data = {}
+        
+        for position in positions:
+            try:
+                # Análisis técnico específico
+                analysis = self.analyzer.analyze_asset_for_decision(position.ticker, position.current_price)
+                
+                # Extraer indicadores clave
+                indicators = analysis.get('indicators', {})
+                
+                # Calcular señales técnicas adicionales
+                technical_signals = self._calculate_technical_signals(position.ticker, position.days_held)
+                
+                technical_data[position.ticker] = {
+                    'trend': indicators.get('trend', 'FLAT'),
+                    'trend_strength': abs(indicators.get('trend_slope', 0)),
+                    'position_in_range': indicators.get('position_in_range', 0.5),
+                    'volatility': indicators.get('volatility', 0),
+                    'momentum': technical_signals.get('momentum', 'NEUTRAL'),
+                    'support_level': technical_signals.get('support', position.current_price * 0.95),
+                    'resistance_level': technical_signals.get('resistance', position.current_price * 1.05),
+                    'buy_signal_strength': analysis.get('confidence', 50) if analysis.get('recommendation') == 'COMPRA' else 0,
+                    'sell_signal_strength': 100 - analysis.get('confidence', 50) if analysis.get('recommendation') == 'MANTENER' else 0
+                }
+            except:
+                # Datos por defecto si falla el análisis
+                technical_data[position.ticker] = {
+                    'trend': 'FLAT', 'trend_strength': 0, 'position_in_range': 0.5,
+                    'volatility': 0, 'momentum': 'NEUTRAL',
+                    'support_level': position.current_price * 0.95,
+                    'resistance_level': position.current_price * 1.05,
+                    'buy_signal_strength': 0, 'sell_signal_strength': 0
+                }
+        
+        return technical_data
+    
+    def _calculate_technical_signals(self, ticker: str, days_held: int) -> Dict:
+        """Calcula señales técnicas específicas"""
+        try:
+            # Obtener datos para análisis técnico
+            lookback_days = max(14, days_held + 7)  # Al menos 14 días o días tenencia + 7
+            historical_data = self.analyzer._get_historical_data(ticker, days=lookback_days)
+            
+            if historical_data.empty or len(historical_data) < 5:
+                return {'momentum': 'NEUTRAL', 'support': None, 'resistance': None}
+            
+            prices = historical_data['precio_cierre'].values
+            
+            # Calcular momentum
+            if len(prices) >= 5:
+                recent_trend = np.polyfit(range(5), prices[-5:], 1)[0]
+                if recent_trend > 0:
+                    momentum = 'POSITIVE'
+                elif recent_trend < 0:
+                    momentum = 'NEGATIVE'
+                else:
+                    momentum = 'NEUTRAL'
+            else:
+                momentum = 'NEUTRAL'
+            
+            # Calcular soporte y resistencia
+            recent_prices = prices[-min(10, len(prices)):]
+            support = np.min(recent_prices)
+            resistance = np.max(recent_prices)
+            
+            return {
+                'momentum': momentum,
+                'support': support,
+                'resistance': resistance
+            }
+        except:
+            return {'momentum': 'NEUTRAL', 'support': None, 'resistance': None}
+    
+    def _analyze_intelligent_profit_taking(self, positions: List[PositionAnalysis], technical_analysis: Dict) -> List[TradeRecommendation]:
+        """Análisis inteligente de toma de ganancias según plazo y análisis técnico"""
+        recommendations = []
+        
+        for position in positions:
+            if position.unrealized_pnl_pct <= 5:  # Solo si hay ganancia mínima
+                continue
+            
+            technical = technical_analysis.get(position.ticker, {})
+            
+            # Determinar umbral de profit taking según días de tenencia
+            if position.days_held <= 3:
+                profit_threshold = self.risk_config['new_position_profit_taking'] * 100
+            elif position.days_held <= 30:
+                profit_threshold = self.risk_config['established_profit_taking'] * 100
+            else:
+                profit_threshold = self.risk_config['mature_profit_taking'] * 100
+            
+            # Evaluar si es momento de tomar ganancias
+            should_take_profit = False
+            profit_reason = ""
+            shares_to_sell = 0
+            
+            if position.unrealized_pnl_pct >= profit_threshold:
+                # Ganancia alcanzó umbral - pero verificar momentum
+                if technical.get('momentum') == 'POSITIVE' and technical.get('trend') == 'UP':
+                    # Momentum positivo - tomar solo ganancias parciales
+                    shares_to_sell = int(position.current_shares * 0.3)  # 30%
+                    profit_reason = f"Toma ganancias parcial - target {profit_threshold:.0f}% alcanzado con momentum positivo"
+                else:
+                    # Sin momentum - tomar más ganancias
+                    shares_to_sell = int(position.current_shares * 0.5)  # 50%
+                    profit_reason = f"Toma ganancias - target {profit_threshold:.0f}% alcanzado sin momentum"
+                
+                should_take_profit = True
+            
+            elif position.unrealized_pnl_pct >= profit_threshold * 0.7:  # 70% del target
+                # Cerca del target - evaluar resistencia técnica
+                if position.current_price >= technical.get('resistance_level', float('inf')) * 0.98:
+                    # Cerca de resistencia técnica
+                    shares_to_sell = int(position.current_shares * 0.25)  # 25%
+                    profit_reason = f"Cerca de resistencia técnica (${technical.get('resistance_level', 0):,.0f})"
+                    should_take_profit = True
+            
+            if should_take_profit and shares_to_sell > 0:
+                confidence = 70
+                if technical.get('momentum') == 'NEGATIVE':
+                    confidence += 15  # Mayor confianza si momentum es negativo
+                
+                recommendation = TradeRecommendation(
+                    ticker=position.ticker,
+                    action=ActionType.SELL_PROFIT_TAKING,
+                    suggested_shares=shares_to_sell,
+                    target_price=position.current_price,
+                    confidence=confidence,
+                    reasons=[profit_reason, f"Posición con {position.days_held} días de tenencia"],
+                    risk_assessment="Riesgo bajo - toma de ganancias",
+                    take_profit_price=position.current_price
+                )
+                
+                recommendations.append(recommendation)
+        
+        return recommendations
+    
+    def _analyze_dynamic_stop_losses(self, positions: List[PositionAnalysis], technical_analysis: Dict) -> List[TradeRecommendation]:
+        """Análisis de stop losses dinámicos según plazo y técnico"""
+        recommendations = []
+        
+        for position in positions:
+            technical = technical_analysis.get(position.ticker, {})
+            
+            # Determinar stop loss según días de tenencia
+            if position.days_held <= 3:
+                stop_threshold = -self.risk_config['new_position_stop_loss'] * 100
+            elif position.days_held <= 30:
+                stop_threshold = -self.risk_config['established_stop_loss'] * 100
+            else:
+                stop_threshold = -self.risk_config['mature_stop_loss'] * 100
+            
+            # Evaluar si activar stop loss
+            should_stop = False
+            stop_reason = ""
+            
+            if position.unrealized_pnl_pct <= stop_threshold:
+                # Umbral alcanzado
+                should_stop = True
+                stop_reason = f"Stop loss activado - pérdida {position.unrealized_pnl_pct:.1f}% excede límite {stop_threshold:.0f}%"
+            
+            elif position.days_held <= 1 and position.unrealized_pnl_pct <= -5:
+                # Posiciones del mismo día con pérdida significativa
+                should_stop = True
+                stop_reason = f"Stop loss rápido - pérdida {position.unrealized_pnl_pct:.1f}% en posición de {position.days_held} día(s)"
+            
+            elif technical.get('momentum') == 'NEGATIVE' and position.unrealized_pnl_pct <= stop_threshold * 0.7:
+                # Momentum negativo con pérdida moderada
+                should_stop = True
+                stop_reason = f"Stop loss por momentum negativo y pérdida {position.unrealized_pnl_pct:.1f}%"
+            
+            if should_stop:
+                # Ajustar precio de stop por soporte técnico
+                support_level = technical.get('support_level')
+                if support_level and support_level < position.current_price:
+                    stop_price = max(support_level, position.current_price * (1 + stop_threshold/100))
+                else:
+                    stop_price = position.current_price
+                
+                recommendation = TradeRecommendation(
+                    ticker=position.ticker,
+                    action=ActionType.SELL_STOP_LOSS,
+                    suggested_shares=position.current_shares,
+                    target_price=stop_price,
+                    confidence=90,
+                    reasons=[stop_reason, f"Análisis técnico: {technical.get('momentum', 'NEUTRAL')} momentum"],
+                    risk_assessment="Riesgo alto - protección de capital",
+                    stop_loss_price=stop_price
+                )
+                
+                recommendations.append(recommendation)
+        
+        return recommendations
+    
+    def _analyze_smart_rebalancing(self, positions: List[PositionAnalysis], portfolio_metrics: Dict) -> List[TradeRecommendation]:
+        """Rebalanceo inteligente que considera momentum y plazo"""
+        recommendations = []
+        
+        for position in positions:
+            # Solo rebalancear posiciones que realmente excedan límites significativamente
+            max_size = self._get_max_position_size_by_timeframe(position.days_held)
+            
+            if position.position_size_pct <= max_size + 0.05:  # 5% de tolerancia
+                continue
+            
+            # Verificar si la posición está en tendencia positiva fuerte
+            technical = self.analyzer.analyze_asset_for_decision(position.ticker)
+            indicators = technical.get('indicators', {})
+            
+            # No rebalancear posiciones ganadoras en momentum fuerte si son recientes
+            if (position.days_held <= 7 and 
+                position.unrealized_pnl_pct > 5 and 
+                indicators.get('trend') == 'UP' and 
+                abs(indicators.get('trend_slope', 0)) > 100):
+                continue
+            
+            # Calcular reducción necesaria
+            target_size = max_size
+            excess_pct = position.position_size_pct - target_size
+            shares_to_sell = int(position.current_shares * (excess_pct / position.position_size_pct))
+            
+            if shares_to_sell > 0:
+                confidence = 75
+                if position.unrealized_pnl_pct > 20:  # Posición muy ganadora
+                    confidence -= 10  # Menos confianza en vender ganador
+                
+                recommendation = TradeRecommendation(
+                    ticker=position.ticker,
+                    action=ActionType.SELL_REBALANCE,
+                    suggested_shares=shares_to_sell,
+                    target_price=position.current_price,
+                    confidence=confidence,
+                    reasons=[
+                        f"Rebalanceo - posición {position.position_size_pct:.1%} excede límite {max_size:.1%}",
+                        f"Considerando {position.days_held} días de tenencia y momentum actual"
+                    ],
+                    risk_assessment="Riesgo bajo - diversificación de cartera"
+                )
+                
+                recommendations.append(recommendation)
+        
+        return recommendations
+    
+    def _get_max_position_size_by_timeframe(self, days_held: int) -> float:
+        """Retorna el tamaño máximo de posición según días de tenencia"""
+        if days_held <= 3:
+            return self.risk_config['new_position_max_risk']
+        elif days_held <= 30:
+            return self.risk_config['established_max_risk']
+        else:
+            return self.risk_config['mature_max_risk']
+    
+    def _analyze_short_term_opportunities(self, positions: List[PositionAnalysis], technical_analysis: Dict) -> List[TradeRecommendation]:
+        """Analiza oportunidades específicas de corto plazo"""
+        recommendations = []
+        
+        # Esta función busca oportunidades de trading rápido en posiciones existentes
+        for position in positions:
+            if position.days_held > 7:  # Solo para posiciones muy recientes
+                continue
+            
+            technical = technical_analysis.get(position.ticker, {})
+            
+            # Buscar oportunidades de averaging down inteligente
+            if (position.unrealized_pnl_pct < -3 and 
+                position.unrealized_pnl_pct > -8 and
+                technical.get('momentum') == 'POSITIVE'):
+                
+                # Oportunidad de promediar a la baja con momentum positivo
+                additional_shares = min(
+                    int(position.current_shares * 0.2),  # Máximo 20% más
+                    int(10000 / position.current_price)   # O hasta $10k
+                )
+                
+                if additional_shares > 0:
+                    recommendation = TradeRecommendation(
+                        ticker=position.ticker,
+                        action=ActionType.BUY_AVERAGING_DOWN,
+                        suggested_shares=additional_shares,
+                        target_price=position.current_price,
+                        confidence=65,
+                        reasons=[
+                            f"Averaging down en posición reciente ({position.days_held} días)",
+                            f"Pérdida moderada {position.unrealized_pnl_pct:.1f}% con momentum positivo"
+                        ],
+                        risk_assessment="Riesgo moderado - averaging down táctico"
+                    )
+                    
+                    recommendations.append(recommendation)
+        
+        return recommendations
+    
+    def _analyze_new_position_opportunities(self, available_cash: float, current_positions: List[PositionAnalysis]) -> List[TradeRecommendation]:
+        """Análisis de nuevas oportunidades con criterios específicos"""
+        if available_cash < 5000:  # Mínimo para nueva posición
+            return []
+        
+        owned_tickers = [p.ticker for p in current_positions]
+        opportunities = self.analyzer.analyze_market_for_buy_opportunities(available_cash, owned_tickers)
+        
+        recommendations = []
+        for opp in opportunities[:5]:  # Top 5
+            if opp['confidence'] >= 80:  # Solo muy alta confianza
+                # Tamaño de posición inicial conservador
+                max_investment = min(
+                    available_cash * self.risk_config['new_position_max_risk'],
+                    15000  # Máximo $15k por posición nueva
+                )
+                suggested_shares = int(max_investment / opp['current_price'])
+                
+                if suggested_shares > 0:
+                    recommendation = TradeRecommendation(
+                        ticker=opp['ticker'],
+                        action=ActionType.BUY_INITIAL,
+                        suggested_shares=suggested_shares,
+                        target_price=opp['current_price'],
+                        confidence=opp['confidence'],
+                        reasons=opp['reasons'] + ["Posición inicial con criterios conservadores"],
+                        risk_assessment="Riesgo moderado - nueva posición",
+                        stop_loss_price=opp['current_price'] * (1 - self.risk_config['new_position_stop_loss'])
+                    )
+                    recommendations.append(recommendation)
+        
+        return recommendations
+    
+    def _consolidate_with_professional_logic(self, recommendations: Dict, technical_analysis: Dict) -> List[TradeRecommendation]:
+        """Consolida recomendaciones con lógica profesional"""
+        all_recs = []
+        
+        # Prioridad 1: Stop losses críticos (pérdidas importantes)
+        stop_losses = recommendations.get('stop_losses', [])
+        critical_stops = [r for r in stop_losses if r.confidence >= 90]
+        all_recs.extend(critical_stops)
+        
+        # Prioridad 2: Profit taking en posiciones con alta ganancia
+        profit_taking = recommendations.get('profit_taking', [])
+        high_profit_takes = [r for r in profit_taking if r.confidence >= 80]
+        all_recs.extend(high_profit_takes)
+        
+        # Prioridad 3: Stop losses menos críticos
+        remaining_stops = [r for r in stop_losses if r.confidence < 90]
+        all_recs.extend(remaining_stops)
+        
+        # Prioridad 4: Oportunidades de corto plazo
+        short_term = recommendations.get('short_term_trades', [])
+        all_recs.extend(short_term)
+        
+        # Prioridad 5: Rebalanceo inteligente (solo si no hay momentum fuerte)
+        rebalancing = recommendations.get('rebalancing', [])
+        all_recs.extend(rebalancing)
+        
+        # Prioridad 6: Nuevas posiciones
+        new_positions = recommendations.get('new_positions', [])
+        all_recs.extend(new_positions)
+        
+        # Eliminar duplicados manteniendo la recomendación de mayor prioridad
+        seen_tickers = set()
+        final_recs = []
+        
+        for rec in all_recs:
+            if rec.ticker not in seen_tickers:
+                seen_tickers.add(rec.ticker)
+                final_recs.append(rec)
+        
+        return final_recs
+    
+    def _apply_dynamic_risk_limits(self, recommendations: List[TradeRecommendation], portfolio_metrics: Dict, available_cash: float) -> List[TradeRecommendation]:
+        """Aplica límites de riesgo dinámicos"""
+        risk_adjusted = []
+        total_portfolio_value = portfolio_metrics['total_value']
+        
+        for rec in recommendations:
+            # Verificar límites específicos por tipo de acción
+            if rec.action in [ActionType.BUY_INITIAL, ActionType.BUY_AVERAGING_DOWN, ActionType.BUY_MOMENTUM]:
+                investment_amount = rec.suggested_shares * rec.target_price
+                
+                # Verificar cash disponible
+                if investment_amount > available_cash:
+                    rec.suggested_shares = max(1, int(available_cash / rec.target_price))
+                    rec.reasons.append("Ajustado por cash disponible")
+                
+                # Verificar límites de posición
+                position_size_pct = investment_amount / total_portfolio_value
+                max_size = self.risk_config['new_position_max_risk']  # Para nuevas posiciones
+                
+                if position_size_pct > max_size:
+                    max_investment = total_portfolio_value * max_size
+                    rec.suggested_shares = max(1, int(max_investment / rec.target_price))
+                    rec.reasons.append(f"Ajustado por límite de posición ({max_size:.1%})")
+                
+                if rec.suggested_shares > 0:
+                    risk_adjusted.append(rec)
+            else:
+                # Para ventas, aplicar tal como están
+                risk_adjusted.append(rec)
+        
+        return risk_adjusted
     
     def _calculate_portfolio_metrics(self, positions: List[PositionAnalysis], available_cash: float) -> Dict:
         """Calcula métricas completas de la cartera"""
@@ -219,18 +666,22 @@ class AdvancedPortfolioManager:
             sector_allocation[sector] += position.current_value / total_current_value if total_current_value > 0 else 0
         
         # Métricas de riesgo
-        # Concentración (Herfindahl-Hirschman Index)
         hhi = sum((p.current_value / total_current_value) ** 2 for p in positions) if total_current_value > 0 else 0
-        
-        # Posición más grande
         max_position_risk = max(p.position_size_pct for p in positions) if positions else 0
         
-        # Sharpe ratio simplificado
+        # Sharpe ratio ajustado para corto plazo
         if positions and total_invested > 0:
             returns = [p.unrealized_pnl_pct for p in positions]
             avg_return = np.mean(returns)
             std_return = np.std(returns) if len(returns) > 1 else 1
-            sharpe_ratio = avg_return / std_return if std_return != 0 else 0
+            
+            # Ajustar Sharpe para posiciones de corto plazo
+            avg_days = np.mean([p.days_held for p in positions])
+            if avg_days < 7:  # Ajuste para posiciones muy recientes
+                time_adjustment = avg_days / 7  # Factor de ajuste temporal
+                sharpe_ratio = (avg_return * time_adjustment) / std_return if std_return != 0 else 0
+            else:
+                sharpe_ratio = avg_return / std_return if std_return != 0 else 0
         else:
             sharpe_ratio = 0
         
@@ -263,457 +714,8 @@ class AdvancedPortfolioManager:
             }
         }
     
-    def _analyze_averaging_down_opportunities(self, positions: List[PositionAnalysis]) -> List[TradeRecommendation]:
-        """Analiza oportunidades de averaging down con gestión de riesgo"""
-        recommendations = []
-        
-        for position in positions:
-            # Solo considerar averaging down si está en pérdidas
-            if position.unrealized_pnl_pct >= -5:  # No averaging down si pérdida < 5%
-                continue
-            
-            # Verificar que no hayamos hecho demasiados averaging down
-            averaging_attempts = self._get_averaging_attempts_count(position.ticker)
-            if averaging_attempts >= self.risk_config['averaging_down_max_attempts']:
-                continue
-            
-            # Verificar que la caída sea significativa
-            if position.unrealized_pnl_pct > -self.risk_config['averaging_down_drop_threshold'] * 100:
-                continue
-            
-            # Análisis técnico para confirmar si es buena oportunidad
-            technical_analysis = self.analyzer.analyze_asset_for_decision(position.ticker, position.current_price)
-            
-            # Solo averaging down si el análisis técnico es favorable o neutral
-            if 'bajista' in str(technical_analysis.get('reasons', [])).lower():
-                continue
-            
-            # Calcular tamaño de posición para averaging down
-            current_position_value = position.current_value
-            max_additional_investment = current_position_value * 0.5  # Máximo 50% más
-            
-            suggested_shares = int(max_additional_investment / position.current_price)
-            
-            if suggested_shares > 0:
-                # Calcular nuevo precio promedio
-                new_total_shares = position.current_shares + suggested_shares
-                new_total_cost = (position.current_shares * position.avg_cost) + (suggested_shares * position.current_price)
-                new_avg_cost = new_total_cost / new_total_shares
-                
-                # Stop loss para la posición completa
-                stop_loss_price = new_avg_cost * (1 - self.risk_config['max_drawdown_per_position'])
-                
-                confidence = min(80, 40 + abs(position.unrealized_pnl_pct))
-                
-                reasons = [
-                    f"Posición en pérdida del {position.unrealized_pnl_pct:.1f}%",
-                    f"Reducirá precio promedio de ${position.avg_cost:.2f} a ${new_avg_cost:.2f}",
-                    f"Intento {averaging_attempts + 1} de {self.risk_config['averaging_down_max_attempts']} máximo",
-                ]
-                
-                if technical_analysis.get('recommendation') == 'COMPRA':
-                    reasons.append("Análisis técnico favorable para compra")
-                    confidence += 15
-                
-                recommendation = TradeRecommendation(
-                    ticker=position.ticker,
-                    action=ActionType.BUY_AVERAGING_DOWN,
-                    suggested_shares=suggested_shares,
-                    target_price=position.current_price,
-                    confidence=confidence,
-                    reasons=reasons,
-                    risk_assessment=f"Riesgo moderado - averaging down {averaging_attempts + 1}/{self.risk_config['averaging_down_max_attempts']}",
-                    stop_loss_price=stop_loss_price
-                )
-                
-                recommendations.append(recommendation)
-        
-        return recommendations
-    
-    def _analyze_profit_taking_opportunities(self, positions: List[PositionAnalysis]) -> List[TradeRecommendation]:
-        """Analiza oportunidades de toma de ganancias graduales"""
-        recommendations = []
-        
-        for position in positions:
-            if position.unrealized_pnl_pct <= 10:  # Solo considerar si ganancia > 10%
-                continue
-            
-            profit_level = position.unrealized_pnl_pct / 100
-            
-            # Determinar nivel de toma de ganancias
-            shares_to_sell = 0
-            profit_taking_reason = ""
-            
-            if profit_level >= 0.75:  # 75%+ ganancia
-                shares_to_sell = int(position.current_shares * 0.5)  # Vender 50%
-                profit_taking_reason = "Ganancia excepcional del 75%+ - toma de ganancias agresiva"
-            elif profit_level >= 0.50:  # 50%+ ganancia
-                shares_to_sell = int(position.current_shares * 0.33)  # Vender 33%
-                profit_taking_reason = "Ganancia sólida del 50%+ - toma de ganancias moderada"
-            elif profit_level >= 0.30:  # 30%+ ganancia
-                shares_to_sell = int(position.current_shares * 0.25)  # Vender 25%
-                profit_taking_reason = "Ganancia buena del 30%+ - toma de ganancias conservadora"
-            
-            if shares_to_sell > 0:
-                # Verificar momentum - no vender si hay fuerte momentum alcista
-                technical_analysis = self.analyzer.analyze_asset_for_decision(position.ticker)
-                
-                confidence = 70
-                reasons = [profit_taking_reason]
-                
-                # Ajustar por momentum
-                if technical_analysis.get('indicators', {}).get('trend') == 'UP':
-                    trend_slope = technical_analysis.get('indicators', {}).get('trend_slope', 0)
-                    if abs(trend_slope) > 200:  # Momentum muy fuerte
-                        shares_to_sell = int(shares_to_sell * 0.5)  # Reducir venta a la mitad
-                        reasons.append("Momentum alcista fuerte - reduciendo toma de ganancias")
-                        confidence -= 15
-                
-                if shares_to_sell > 0:
-                    recommendation = TradeRecommendation(
-                        ticker=position.ticker,
-                        action=ActionType.SELL_PROFIT_TAKING,
-                        suggested_shares=shares_to_sell,
-                        target_price=position.current_price,
-                        confidence=confidence,
-                        reasons=reasons,
-                        risk_assessment="Riesgo bajo - toma de ganancias",
-                        take_profit_price=position.current_price
-                    )
-                    
-                    recommendations.append(recommendation)
-        
-        return recommendations
-    
-    def _analyze_stop_loss_triggers(self, positions: List[PositionAnalysis]) -> List[TradeRecommendation]:
-        """Analiza triggers de stop loss"""
-        recommendations = []
-        
-        for position in positions:
-            # Stop loss fijo
-            if position.unrealized_pnl_pct <= -self.risk_config['max_drawdown_per_position'] * 100:
-                recommendation = TradeRecommendation(
-                    ticker=position.ticker,
-                    action=ActionType.SELL_STOP_LOSS,
-                    suggested_shares=position.current_shares,
-                    target_price=position.current_price,
-                    confidence=95,
-                    reasons=[f"Stop loss activado - pérdida del {position.unrealized_pnl_pct:.1f}% excede límite del {self.risk_config['max_drawdown_per_position']*100:.0f}%"],
-                    risk_assessment="Riesgo alto - stop loss obligatorio",
-                    stop_loss_price=position.current_price
-                )
-                recommendations.append(recommendation)
-        
-        return recommendations
-    
-    def _analyze_trailing_stops(self, positions: List[PositionAnalysis]) -> List[TradeRecommendation]:
-        """Analiza trailing stops dinámicos"""
-        recommendations = []
-        
-        for position in positions:
-            # Solo activar trailing stop si hay ganancia significativa
-            if position.unrealized_pnl_pct < self.risk_config['trailing_stop_activation'] * 100:
-                continue
-            
-            # Obtener precio máximo histórico desde la compra
-            max_price = self._get_max_price_since_purchase(position.ticker, position.days_held)
-            
-            if max_price is None:
-                continue
-            
-            # Calcular trailing stop price
-            trailing_stop_price = max_price * (1 - self.risk_config['trailing_stop_distance'])
-            
-            # Activar si precio actual está cerca del trailing stop
-            if position.current_price <= trailing_stop_price * 1.02:  # 2% de margen
-                recommendation = TradeRecommendation(
-                    ticker=position.ticker,
-                    action=ActionType.SELL_TRAILING_STOP,
-                    suggested_shares=position.current_shares,
-                    target_price=trailing_stop_price,
-                    confidence=85,
-                    reasons=[
-                        f"Trailing stop activado desde máximo de ${max_price:.2f}",
-                        f"Precio actual ${position.current_price:.2f} cerca de stop ${trailing_stop_price:.2f}"
-                    ],
-                    risk_assessment="Riesgo medio - protección de ganancias",
-                    stop_loss_price=trailing_stop_price
-                )
-                recommendations.append(recommendation)
-        
-        return recommendations
-    
-    def _analyze_momentum_opportunities(self, available_cash: float, current_positions: List[PositionAnalysis]) -> List[TradeRecommendation]:
-        """Analiza oportunidades de momentum trading"""
-        recommendations = []
-        
-        if available_cash < 10000:  # Mínimo para momentum plays
-            return recommendations
-        
-        # Obtener tickers no poseídos actualmente
-        owned_tickers = [p.ticker for p in current_positions]
-        
-        # Buscar oportunidades con fuerte momentum
-        opportunities = self.analyzer.analyze_market_for_buy_opportunities(available_cash, owned_tickers)
-        
-        for opp in opportunities:
-            if opp['confidence'] < 80:  # Solo momentum plays de alta confianza
-                continue
-            
-            # Verificar que sea realmente momentum (no solo compra normal)
-            score_details = opp.get('score_details', {})
-            trend_info = score_details.get('breakdown', {}).get('trend', {})
-            
-            if trend_info.get('value') == 'UP' and abs(trend_info.get('slope', 0)) > 150:
-                # Posición más pequeña para momentum (más riesgoso)
-                max_investment = min(available_cash * 0.08, 25000)  # 8% o $25k máximo
-                suggested_shares = int(max_investment / opp['current_price'])
-                
-                if suggested_shares > 0:
-                    # Stop loss más cercano para momentum
-                    stop_loss_price = opp['current_price'] * 0.92  # -8% stop loss
-                    
-                    recommendation = TradeRecommendation(
-                        ticker=opp['ticker'],
-                        action=ActionType.BUY_MOMENTUM,
-                        suggested_shares=suggested_shares,
-                        target_price=opp['current_price'],
-                        confidence=opp['confidence'],
-                        reasons=opp['reasons'] + ["Momentum trading - tendencia alcista fuerte"],
-                        risk_assessment="Riesgo alto - momentum trading",
-                        stop_loss_price=stop_loss_price
-                    )
-                    
-                    recommendations.append(recommendation)
-        
-        return recommendations
-    
-    def _analyze_rebalancing_needs(self, positions: List[PositionAnalysis], portfolio_metrics: Dict) -> List[TradeRecommendation]:
-        """Analiza necesidades de rebalanceo"""
-        recommendations = []
-        
-        # Rebalanceo por tamaño de posición
-        for position in positions:
-            if position.position_size_pct > self.risk_config['max_position_size'] + self.risk_config['rebalance_threshold']:
-                # Posición demasiado grande - reducir
-                target_size = self.risk_config['max_position_size']
-                shares_to_sell = int(position.current_shares * (1 - target_size / position.position_size_pct))
-                
-                if shares_to_sell > 0:
-                    recommendation = TradeRecommendation(
-                        ticker=position.ticker,
-                        action=ActionType.SELL_REBALANCE,
-                        suggested_shares=shares_to_sell,
-                        target_price=position.current_price,
-                        confidence=75,
-                        reasons=[f"Rebalanceo - posición del {position.position_size_pct:.1%} excede límite del {self.risk_config['max_position_size']:.1%}"],
-                        risk_assessment="Riesgo bajo - rebalanceo de cartera"
-                    )
-                    recommendations.append(recommendation)
-        
-        # Rebalanceo por sector
-        sector_allocation = portfolio_metrics.get('sector_allocation', {})
-        for sector, allocation in sector_allocation.items():
-            if allocation > self.risk_config['max_sector_allocation'] + self.risk_config['rebalance_threshold']:
-                # Sector sobreexpuesto - identificar posiciones a reducir
-                sector_positions = [p for p in positions if p.sector == sector]
-                largest_position = max(sector_positions, key=lambda x: x.position_size_pct)
-                
-                # Reducir la posición más grande del sector
-                reduction_needed = allocation - self.risk_config['max_sector_allocation']
-                shares_to_sell = int(largest_position.current_shares * (reduction_needed / allocation))
-                
-                if shares_to_sell > 0:
-                    recommendation = TradeRecommendation(
-                        ticker=largest_position.ticker,
-                        action=ActionType.SELL_REBALANCE,
-                        suggested_shares=shares_to_sell,
-                        target_price=largest_position.current_price,
-                        confidence=70,
-                        reasons=[f"Rebalanceo sectorial - sector {sector} con {allocation:.1%} excede límite del {self.risk_config['max_sector_allocation']:.1%}"],
-                        risk_assessment="Riesgo bajo - diversificación sectorial"
-                    )
-                    recommendations.append(recommendation)
-        
-        return recommendations
-    
-    def _analyze_new_position_opportunities(self, available_cash: float, current_positions: List[PositionAnalysis]) -> List[TradeRecommendation]:
-        """Analiza oportunidades de nuevas posiciones"""
-        if available_cash < 15000:  # Mínimo para nueva posición
-            return []
-        
-        owned_tickers = [p.ticker for p in current_positions]
-        opportunities = self.analyzer.analyze_market_for_buy_opportunities(available_cash, owned_tickers)
-        
-        recommendations = []
-        for opp in opportunities[:3]:  # Top 3 oportunidades
-            if opp['confidence'] >= 70:  # Solo oportunidades sólidas
-                # Tamaño de posición inicial conservador
-                max_investment = min(available_cash * self.risk_config['max_position_size'], 30000)
-                suggested_shares = int(max_investment / opp['current_price'])
-                
-                if suggested_shares > 0:
-                    recommendation = TradeRecommendation(
-                        ticker=opp['ticker'],
-                        action=ActionType.BUY_INITIAL,
-                        suggested_shares=suggested_shares,
-                        target_price=opp['current_price'],
-                        confidence=opp['confidence'],
-                        reasons=opp['reasons'],
-                        risk_assessment="Riesgo moderado - nueva posición",
-                        stop_loss_price=opp['current_price'] * 0.85  # -15% stop loss inicial
-                    )
-                    recommendations.append(recommendation)
-        
-        return recommendations
-    
-    def _analyze_risk_reduction_needs(self, positions: List[PositionAnalysis], portfolio_metrics: Dict) -> List[TradeRecommendation]:
-        """Analiza necesidades de reducción de riesgo"""
-        recommendations = []
-        
-        # Identificar posiciones de alto riesgo
-        high_risk_positions = [p for p in positions if p.risk_score > 7.5]
-        
-        for position in high_risk_positions:
-            # Reducir posiciones de muy alto riesgo
-            shares_to_sell = int(position.current_shares * 0.3)  # Reducir 30%
-            
-            if shares_to_sell > 0:
-                recommendation = TradeRecommendation(
-                    ticker=position.ticker,
-                    action=ActionType.REDUCE_POSITION,
-                    suggested_shares=shares_to_sell,
-                    target_price=position.current_price,
-                    confidence=60,
-                    reasons=[f"Reducción de riesgo - score de riesgo {position.risk_score:.1f}/10"],
-                    risk_assessment="Riesgo alto - reducir exposición"
-                )
-                recommendations.append(recommendation)
-        
-        return recommendations
-    
-    # Funciones auxiliares
-    def _calculate_risk_score(self, pnl_pct: float, volatility: float, beta: float, days_held: int) -> float:
-        """Calcula score de riesgo de 0-10"""
-        risk_score = 5.0  # Base
-        
-        # Ajuste por P&L
-        if pnl_pct < -30:
-            risk_score += 2.0
-        elif pnl_pct < -15:
-            risk_score += 1.0
-        elif pnl_pct > 50:
-            risk_score += 0.5  # Ganancia grande también es riesgo
-        
-        # Ajuste por volatilidad
-        if volatility > 40:
-            risk_score += 1.5
-        elif volatility > 25:
-            risk_score += 0.5
-        
-        # Ajuste por beta
-        if beta > 1.5:
-            risk_score += 1.0
-        elif beta < 0.5:
-            risk_score -= 0.5
-        
-        # Ajuste por tiempo de tenencia
-        if days_held < 30:
-            risk_score += 0.5  # Posiciones nuevas son más riesgosas
-        
-        return min(10.0, max(0.0, risk_score))
-    
-    def _calculate_beta(self, returns: pd.Series) -> float:
-        """Calcula beta simplificado (vs mercado promedio)"""
-        # Simplificado - en realidad necesitarías un índice de referencia
-        return min(2.0, max(0.0, returns.std() / 0.02))  # Normalizado
-    
-    def _get_averaging_attempts_count(self, ticker: str) -> int:
-        """Obtiene número de intentos de averaging down (simplificado)"""
-        # En implementación real, esto vendría de una base de datos de trades
-        return 0  # Por ahora retorna 0
-    
-    def _get_max_price_since_purchase(self, ticker: str, days_held: int) -> Optional[float]:
-        """Obtiene precio máximo desde la compra"""
-        try:
-            historical_data = self.analyzer._get_historical_data(ticker, days=days_held + 10)
-            if not historical_data.empty:
-                return historical_data['precio_cierre'].max()
-        except:
-            pass
-        return None
-    
-    def _consolidate_recommendations(self, recommendations: Dict) -> List[TradeRecommendation]:
-        """Consolida y prioriza todas las recomendaciones"""
-        all_recs = []
-        
-        # Prioridad 1: Stop losses (crítico)
-        all_recs.extend(recommendations['stop_losses'])
-        
-        # Prioridad 2: Trailing stops (protección de ganancias)
-        all_recs.extend(recommendations['trailing_stops'])
-        
-        # Prioridad 3: Rebalanceo (gestión de riesgo)
-        all_recs.extend(recommendations['rebalancing'])
-        
-        # Prioridad 4: Toma de ganancias
-        all_recs.extend(recommendations['profit_taking'])
-        
-        # Prioridad 5: Averaging down (oportunidad)
-        all_recs.extend(recommendations['averaging_down'])
-        
-        # Prioridad 6: Reducción de riesgo
-        all_recs.extend(recommendations['risk_reduction'])
-        
-        # Prioridad 7: Momentum plays
-        all_recs.extend(recommendations['momentum_plays'])
-        
-        # Prioridad 8: Nuevas posiciones
-        all_recs.extend(recommendations['new_positions'])
-        
-        # Eliminar duplicados por ticker (mantener la recomendación de mayor prioridad)
-        seen_tickers = set()
-        final_recs = []
-        
-        for rec in all_recs:
-            if rec.ticker not in seen_tickers:
-                seen_tickers.add(rec.ticker)
-                final_recs.append(rec)
-        
-        return final_recs
-    
-    def _apply_risk_limits(self, recommendations: List[TradeRecommendation], portfolio_metrics: Dict, available_cash: float) -> List[TradeRecommendation]:
-        """Aplica límites de riesgo a las recomendaciones"""
-        risk_adjusted = []
-        total_portfolio_value = portfolio_metrics['total_value'] + available_cash
-        
-        for rec in recommendations:
-            # Verificar límites de posición
-            if rec.action in [ActionType.BUY_INITIAL, ActionType.BUY_AVERAGING_DOWN, ActionType.BUY_MOMENTUM]:
-                investment_amount = rec.suggested_shares * rec.target_price
-                position_size_pct = investment_amount / total_portfolio_value
-                
-                # No exceder límite de posición individual
-                if position_size_pct > self.risk_config['max_position_size']:
-                    max_investment = total_portfolio_value * self.risk_config['max_position_size']
-                    rec.suggested_shares = int(max_investment / rec.target_price)
-                    rec.reasons.append("Ajustado por límite de tamaño de posición")
-                
-                # Verificar cash disponible
-                if investment_amount > available_cash:
-                    rec.suggested_shares = int(available_cash / rec.target_price)
-                    rec.reasons.append("Ajustado por cash disponible")
-                
-                if rec.suggested_shares > 0:
-                    risk_adjusted.append(rec)
-            else:
-                # Para ventas, aplicar tal como están
-                risk_adjusted.append(rec)
-        
-        return risk_adjusted
-    
-    def _generate_risk_assessment(self, positions: List[PositionAnalysis], portfolio_metrics: Dict) -> Dict:
-        """Genera evaluación completa de riesgo de la cartera"""
+    def _generate_professional_risk_assessment(self, positions: List[PositionAnalysis], portfolio_metrics: Dict) -> Dict:
+        """Genera evaluación de riesgo profesional considerando plazos de tenencia"""
         if not positions:
             return {'overall_risk': 'bajo', 'risk_factors': [], 'recommendations': []}
         
@@ -722,36 +724,35 @@ class AdvancedPortfolioManager:
         
         # Factor 1: Concentración
         concentration = portfolio_metrics['risk_metrics']['concentration_risk']
-        if concentration > 0.3:  # HHI > 0.3 indica alta concentración
+        if concentration > 0.3:
             risk_factors.append(f"Alta concentración de cartera (HHI: {concentration:.2f})")
             risk_score += 2
         
-        # Factor 2: Posiciones grandes
-        max_position = portfolio_metrics['risk_metrics']['max_position_risk']
-        if max_position > 0.2:
-            risk_factors.append(f"Posición individual muy grande ({max_position:.1%})")
+        # Factor 2: Posiciones muy recientes (mayor riesgo)
+        very_new_positions = [p for p in positions if p.days_held <= 1]
+        if len(very_new_positions) >= 3:
+            risk_factors.append(f"{len(very_new_positions)} posiciones con menos de 2 días de tenencia")
             risk_score += 2
         
-        # Factor 3: Exposición sectorial
-        sector_allocation = portfolio_metrics['sector_allocation']
-        for sector, allocation in sector_allocation.items():
-            if allocation > 0.3:
-                risk_factors.append(f"Sobreexposición al sector {sector} ({allocation:.1%})")
-                risk_score += 1
-        
-        # Factor 4: Posiciones en pérdida significativa
-        big_losers = [p for p in positions if p.unrealized_pnl_pct < -25]
-        if big_losers:
-            risk_factors.append(f"{len(big_losers)} posiciones con pérdidas >25%")
-            risk_score += len(big_losers)
-        
-        # Factor 5: Cash allocation muy baja
-        cash_pct = portfolio_metrics['cash_allocation']
-        if cash_pct < 0.05:  # Menos del 5% en efectivo
-            risk_factors.append("Muy poco efectivo disponible (<5%)")
+        # Factor 3: Posiciones grandes con poco tiempo
+        large_new_positions = [p for p in positions if p.days_held <= 3 and p.position_size_pct > 0.15]
+        if large_new_positions:
+            risk_factors.append(f"Posiciones grandes recientes: riesgo de volatilidad")
             risk_score += 1
         
-        # Determinar nivel de riesgo general
+        # Factor 4: Pérdidas acumuladas en posiciones recientes
+        recent_losers = [p for p in positions if p.days_held <= 7 and p.unrealized_pnl_pct < -5]
+        if recent_losers:
+            risk_factors.append(f"{len(recent_losers)} posiciones recientes con pérdidas significativas")
+            risk_score += len(recent_losers)
+        
+        # Factor 5: Cash allocation
+        cash_pct = portfolio_metrics['cash_allocation']
+        if cash_pct < 0.20:  # Menos del 20% en efectivo
+            risk_factors.append("Baja liquidez disponible (<20% cash)")
+            risk_score += 1
+        
+        # Determinar nivel de riesgo
         if risk_score >= 8:
             overall_risk = 'muy_alto'
         elif risk_score >= 5:
@@ -761,13 +762,13 @@ class AdvancedPortfolioManager:
         else:
             overall_risk = 'bajo'
         
+        # Recomendaciones específicas
         risk_recommendations = []
         if overall_risk in ['alto', 'muy_alto']:
             risk_recommendations.extend([
-                "Considerar reducir posiciones grandes",
-                "Aumentar diversificación sectorial",
-                "Mantener más efectivo disponible",
-                "Implementar stops losses más estrictos"
+                "Considerar reducir tamaño de posiciones recientes",
+                "Mantener más efectivo para oportunidades",
+                "Implementar stops losses más estrictos para posiciones nuevas"
             ])
         
         return {
@@ -777,21 +778,22 @@ class AdvancedPortfolioManager:
             'recommendations': risk_recommendations,
             'metrics': {
                 'concentration_hhi': concentration,
-                'max_position_size': max_position,
+                'max_position_size': portfolio_metrics['risk_metrics']['max_position_risk'],
                 'cash_allocation': cash_pct,
-                'positions_at_loss': len(big_losers),
-                'avg_risk_score': np.mean([p.risk_score for p in positions])
+                'very_new_positions': len(very_new_positions),
+                'recent_losers': len(recent_losers),
+                'avg_days_held': portfolio_metrics['risk_metrics']['avg_days_held']
             }
         }
     
-    def _generate_execution_plan(self, recommendations: List[TradeRecommendation]) -> Dict:
-        """Genera plan de ejecución priorizado"""
+    def _generate_intelligent_execution_plan(self, recommendations: List[TradeRecommendation]) -> Dict:
+        """Genera plan de ejecución inteligente considerando urgencia y plazos"""
         if not recommendations:
             return {'immediate_actions': [], 'planned_actions': [], 'monitoring_alerts': []}
         
-        immediate_actions = []
-        planned_actions = []
-        monitoring_alerts = []
+        immediate_actions = []  # Ejecutar hoy
+        planned_actions = []    # Esta semana
+        monitoring_alerts = [] # Monitorear
         
         for rec in recommendations:
             action_desc = {
@@ -805,21 +807,35 @@ class AdvancedPortfolioManager:
                 'take_profit': rec.take_profit_price
             }
             
-            # Clasificar por urgencia
-            if rec.action in [ActionType.SELL_STOP_LOSS, ActionType.SELL_TRAILING_STOP]:
+            # Clasificar por urgencia y tipo
+            if rec.action == ActionType.SELL_STOP_LOSS and rec.confidence >= 90:
+                # Stop losses críticos - ejecutar inmediatamente
                 immediate_actions.append(action_desc)
-            elif rec.action in [ActionType.SELL_PROFIT_TAKING, ActionType.SELL_REBALANCE, ActionType.BUY_AVERAGING_DOWN]:
+                
+            elif rec.action == ActionType.SELL_PROFIT_TAKING and rec.confidence >= 85:
+                # Toma de ganancias alta confianza - esta semana
                 planned_actions.append(action_desc)
-            else:
+                
+            elif rec.action in [ActionType.SELL_REBALANCE, ActionType.BUY_AVERAGING_DOWN]:
+                # Rebalanceo y averaging down - planificado
+                planned_actions.append(action_desc)
+                
+            elif rec.action == ActionType.BUY_INITIAL:
+                # Nuevas posiciones - monitorear primero
                 monitoring_alerts.append(action_desc)
+                
+            else:
+                # Otras acciones - planificadas
+                planned_actions.append(action_desc)
         
         return {
             'immediate_actions': immediate_actions,
             'planned_actions': planned_actions,
             'monitoring_alerts': monitoring_alerts,
             'execution_notes': [
-                "Ejecutar acciones inmediatas dentro de 24 horas",
-                "Acciones planificadas pueden ejecutarse durante la semana",
-                "Monitorear alertas y ejecutar si las condiciones se mantienen"
+                "Ejecutar acciones inmediatas dentro de las próximas 4 horas",
+                "Acciones planificadas: ejecutar en los próximos 2-3 días",
+                "Monitorear alertas durante 24-48 horas antes de ejecutar",
+                "Considerar condiciones de mercado antes de cada operación"
             ]
         }

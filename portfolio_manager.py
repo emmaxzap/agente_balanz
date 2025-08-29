@@ -1,14 +1,14 @@
-# portfolio_manager.py - Integración con sistema avanzado corregido
+# portfolio_manager.py - Sistema híbrido: Reglas + Agente Experto
 from datetime import date, datetime
 import sys
 from pathlib import Path
 
-# Agregar rutas necesarias
 sys.path.append(str(Path(__file__).parent))
 
 from scraper.cartera_extractor import CarteraExtractor
 from analysis.financial_analyzer import FinancialAnalyzer
 from advanced_portfolio_manager import AdvancedPortfolioManager, ActionType
+from claude_portfolio_agent import ClaudePortfolioAgent
 from database.database_manager import SupabaseManager
 
 class PortfolioManager:
@@ -18,13 +18,14 @@ class PortfolioManager:
         self.cartera_extractor = CarteraExtractor(page)
         self.financial_analyzer = FinancialAnalyzer(self.db)
         self.advanced_manager = AdvancedPortfolioManager(self.db, self.financial_analyzer)
+        self.expert_agent = ClaudePortfolioAgent(self.db)
         self.portfolio_data = None
     
     def run_complete_analysis(self):
-        """Ejecuta análisis completo con sistema avanzado de gestión"""
+        """Ejecuta análisis completo: Sistema de reglas + Agente experto"""
         try:
-            print("\n🚀 INICIANDO ANÁLISIS AVANZADO DE CARTERA")
-            print("="*60)
+            print("🚀 INICIANDO ANÁLISIS HÍBRIDO: REGLAS + AGENTE EXPERTO")
+            print("="*70)
             
             # 1. Extraer datos de la cartera
             self.portfolio_data = self.cartera_extractor.extract_portfolio_data()
@@ -33,295 +34,518 @@ class PortfolioManager:
                 print("❌ No se pudieron extraer datos de la cartera")
                 return False
             
-            # 2. Análisis avanzado completo
-            print(f"\n📊 EJECUTANDO ANÁLISIS PROFESIONAL DE CARTERA")
+            # 2. Análisis del sistema de reglas (actual)
+            print("📊 EJECUTANDO ANÁLISIS DEL SISTEMA DE REGLAS")
             print("-" * 50)
             
-            advanced_analysis = self.advanced_manager.analyze_complete_portfolio(
+            rules_analysis = self.advanced_manager.analyze_complete_portfolio(
                 self.portfolio_data,
                 self.portfolio_data['dinero_disponible']
             )
             
-            # 3. Mostrar resultados detallados
-            self._display_advanced_results(advanced_analysis)
+            # 3. Análisis del agente experto
+            print("🤖 EJECUTANDO ANÁLISIS DEL AGENTE EXPERTO")
+            print("-" * 50)
             
-            # 4. Guardar análisis en BD
-            self._save_advanced_analysis_to_db(advanced_analysis)
+            expert_analysis = self.expert_agent.analyze_portfolio_with_expert_agent(
+                self.portfolio_data,
+                self.portfolio_data['dinero_disponible']
+            )
             
-            # 5. Enviar notificación avanzada
-            self._send_advanced_whatsapp_notification(advanced_analysis)
+            # 4. Comparar y mostrar ambos análisis
+            self._display_comparative_analysis(rules_analysis, expert_analysis)
             
-            print("\n✅ ANÁLISIS AVANZADO COMPLETADO")
+            # 5. Generar recomendación combinada
+            combined_recommendations = self._combine_analyses(rules_analysis, expert_analysis)
+            
+            # 6. Guardar análisis en BD
+            self._save_comparative_analysis_to_db(rules_analysis, expert_analysis, combined_recommendations)
+            
+            # 7. Enviar notificación combinada
+            self._send_comparative_whatsapp_notification(rules_analysis, expert_analysis, combined_recommendations)
+            
+            print("✅ ANÁLISIS HÍBRIDO COMPLETADO")
             
             return True
             
         except Exception as e:
-            print(f"❌ Error en análisis avanzado: {str(e)}")
+            print(f"❌ Error en análisis híbrido: {str(e)}")
             import traceback
             traceback.print_exc()
             return False
     
-    def _display_advanced_results(self, analysis: dict):
-        """Muestra resultados del análisis avanzado"""
+    def _display_comparative_analysis(self, rules_analysis: dict, expert_analysis: dict):
+        """Muestra comparación entre análisis de reglas y experto"""
         
-        positions = analysis['positions_analysis']
-        metrics = analysis['portfolio_metrics']
-        recommendations = analysis['recommendations']
-        risk_assessment = analysis['risk_assessment']
-        execution_plan = analysis['execution_plan']
-        
-        print(f"\n📊 MÉTRICAS AVANZADAS DE CARTERA")
+        print("📊 COMPARACIÓN DE ANÁLISIS")
         print("="*50)
         
-        # Métricas generales
+        # Resumen de cartera (común)
+        positions = rules_analysis['positions_analysis']
+        metrics = rules_analysis['portfolio_metrics']
+        
+        print(f"💼 DATOS DE CARTERA:")
         print(f"💰 Valor total: ${metrics['total_value']:,.2f}")
         print(f"📈 P&L total: ${metrics['total_pnl']:,.2f} ({metrics['total_pnl_pct']:+.1f}%)")
         print(f"💵 Efectivo: {metrics['cash_allocation']:.1%}")
-        print(f"🏛️ Posiciones: {metrics['number_of_positions']}")
-        print(f"📊 Sharpe ratio: {metrics['risk_metrics']['sharpe_ratio']:.2f}")
-        print(f"⚠️ Riesgo concentración: {metrics['risk_metrics']['concentration_risk']:.2f}")
+        print(f"⏱️ Días promedio tenencia: {metrics['risk_metrics']['avg_days_held']:.1f}")
         
-        # Diversificación por sector
-        print(f"\n🏢 DIVERSIFICACIÓN SECTORIAL:")
-        print("-" * 30)
-        for sector, allocation in metrics['sector_allocation'].items():
-            print(f"   {sector.title()}: {allocation:.1%}")
+        # Posiciones detalladas con contexto
+        print(f"\n📋 POSICIONES CON CONTEXTO:")
+        print("-" * 40)
+        for position in positions:
+            pnl_emoji = "🟢" if position.unrealized_pnl > 0 else "🔴" if position.unrealized_pnl < 0 else "⚪"
+            print(f"{pnl_emoji} {position.ticker}: {position.current_shares} nominales")
+            print(f"    💰 P&L: ${position.unrealized_pnl:,.2f} ({position.unrealized_pnl_pct:+.1f}%)")
+            print(f"    📅 Días: {position.days_held} | Tamaño: {position.position_size_pct:.1%}")
+            print(f"    🏭 Sector: {position.sector}")
         
-        # Evaluación de riesgo
-        print(f"\n⚠️ EVALUACIÓN DE RIESGO:")
-        print("-" * 30)
-        print(f"🎯 Nivel de riesgo: {risk_assessment['overall_risk'].upper()}")
-        print(f"📊 Score de riesgo: {risk_assessment['risk_score']}/10")
-        
-        if risk_assessment['risk_factors']:
-            print(f"\n🚨 Factores de riesgo identificados:")
-            for factor in risk_assessment['risk_factors']:
-                print(f"   • {factor}")
-        
-        # Recomendaciones por estrategia
-        print(f"\n📋 RECOMENDACIONES ESTRATÉGICAS")
+        print("\n" + "="*50)
+        print("🤖 VS 📊 COMPARACIÓN DE RECOMENDACIONES")
         print("="*50)
         
-        if not recommendations:
-            print("✅ No hay recomendaciones en este momento")
-            return
+        # Recomendaciones del sistema de reglas
+        print("📊 SISTEMA DE REGLAS:")
+        rules_recs = rules_analysis.get('recommendations', [])
+        if rules_recs:
+            for rec in rules_recs:
+                action_emoji = self._get_action_emoji(rec.action.value)
+                print(f"{action_emoji} {rec.ticker}: {rec.action.value} {rec.suggested_shares} nominales (Confianza: {rec.confidence:.0f}%)")
+                print(f"    💡 {rec.reasons[0] if rec.reasons else 'No reason provided'}")
+        else:
+            print("    ✅ Sin recomendaciones")
         
-        # Agrupar por tipo de acción
-        actions_by_type = {}
-        for rec in recommendations:
-            action_type = rec.action.value
-            if action_type not in actions_by_type:
-                actions_by_type[action_type] = []
-            actions_by_type[action_type].append(rec)
+        print("\n🤖 AGENTE EXPERTO:")
         
-        # Mostrar por categoría
-        action_emojis = {
+        # Análisis técnico por activo
+        analisis_tecnico = expert_analysis.get('analisis_tecnico', {})
+        if analisis_tecnico:
+            print("📈 ANÁLISIS TÉCNICO POR ACTIVO:")
+            por_activo = analisis_tecnico.get('por_activo', {})
+            for ticker, analysis in por_activo.items():
+                momentum = analysis.get('momentum', 'neutral')
+                soporte = analysis.get('soporte', 0)
+                resistencia = analysis.get('resistencia', 0)
+                recomendacion = analysis.get('recomendacion', 'No especificada')
+                
+                emoji = "📈" if momentum == 'alcista' else "📉" if momentum == 'bajista' else "➡️"
+                print(f"    {emoji} {ticker}: {momentum.upper()}")
+                print(f"       Soporte: ${soporte} | Resistencia: ${resistencia}")
+                print(f"       {recomendacion}")
+        
+        # Acciones inmediatas
+        immediate = expert_analysis.get('acciones_inmediatas', [])
+        if immediate:
+            print("🚨 ACCIONES INMEDIATAS:")
+            for action in immediate:
+                ticker = action.get('ticker', 'N/A')
+                accion = action.get('accion', 'N/A')
+                urgencia = action.get('urgencia', 'media')
+                razon = action.get('razon', 'No especificada')
+                print(f"    ⚠️ {ticker}: {accion} (Urgencia: {urgencia})")
+                print(f"       {razon}")
+        
+        # Acciones de corto plazo
+        short_term = expert_analysis.get('acciones_corto_plazo', [])
+        if short_term:
+            print("📅 ACCIONES CORTO PLAZO:")
+            for action in short_term:
+                ticker = action.get('ticker', 'N/A')
+                accion = action.get('accion', 'N/A')
+                timeframe = action.get('timeframe', 'No especificado')
+                condiciones = action.get('condiciones', 'No especificadas')
+                print(f"    📊 {ticker}: {accion} ({timeframe})")
+                print(f"       {condiciones}")
+        
+        # Gestión de riesgo
+        gestion_riesgo = expert_analysis.get('gestion_riesgo', {})
+        if gestion_riesgo:
+            print(f"\n⚠️ GESTIÓN DE RIESGO:")
+            print(f"    🎯 Nivel de riesgo: {gestion_riesgo.get('riesgo_cartera', 'N/A')}/10")
+            concentraciones = gestion_riesgo.get('concentraciones_riesgo', [])
+            if concentraciones:
+                print("    🚨 Concentraciones de riesgo:")
+                for riesgo in concentraciones[:2]:
+                    print(f"       • {riesgo}")
+        
+        # Estrategia de efectivo
+        estrategia_efectivo = expert_analysis.get('estrategia_efectivo', {})
+        if estrategia_efectivo:
+            print(f"\n💰 ESTRATEGIA DE EFECTIVO:")
+            efectivo_optimo = estrategia_efectivo.get('efectivo_optimo', 'N/A')
+            print(f"    🎯 Efectivo óptimo: {efectivo_optimo}")
+            colocaciones = estrategia_efectivo.get('colocaciones_sugeridas', [])
+            if colocaciones:
+                print("    💎 Colocaciones sugeridas:")
+                for colocacion in colocaciones:
+                    instrumento = colocacion.get('instrumento', 'N/A')
+                    monto = colocacion.get('monto', 'N/A')
+                    plazo = colocacion.get('plazo', 'N/A')
+                    tasa = colocacion.get('tasa_esperada', 'N/A')
+                    print(f"       • {instrumento}: ${monto} a {plazo} ({tasa})")
+        
+        # Plan de mediano plazo
+        plan_mediano = expert_analysis.get('plan_mediano_plazo', {})
+        if plan_mediano:
+            objetivos = plan_mediano.get('objetivos_1_mes', [])
+            if objetivos:
+                print(f"\n🎯 OBJETIVOS 1 MES:")
+                for objetivo in objetivos[:2]:
+                    print(f"    💡 {objetivo}")
+        
+        # Razonamiento integral
+        razonamiento = expert_analysis.get('razonamiento_integral', '')
+        if razonamiento:
+            print(f"\n🧠 RAZONAMIENTO INTEGRAL:")
+            print(f"    {razonamiento[:300]}{'...' if len(razonamiento) > 300 else ''}")
+        
+        # Razonamiento del experto
+        reasoning = expert_analysis.get('reasoning', '')
+        if reasoning:
+            print(f"\n🧠 RAZONAMIENTO DEL EXPERTO:")
+            print(f"    {reasoning[:200]}{'...' if len(reasoning) > 200 else ''}")
+    
+    def _get_action_emoji(self, action_type: str) -> str:
+        """Obtiene emoji para tipo de acción"""
+        emoji_map = {
             'stop_loss': '🚨',
-            'trailing_stop': '📉',
             'toma_ganancias': '💰',
             'promedio_a_la_baja': '📊',
             'rebalanceo': '⚖️',
             'compra_inicial': '🟢',
-            'compra_momentum': '⚡',
             'reducir_posicion': '⚠️'
         }
-        
-        for action_type, recs in actions_by_type.items():
-            emoji = action_emojis.get(action_type, '📈')
-            print(f"\n{emoji} {action_type.replace('_', ' ').upper()} ({len(recs)} recomendaciones):")
-            print("-" * 40)
-            
-            for rec in recs:
-                investment = rec.suggested_shares * rec.target_price
-                print(f"📊 {rec.ticker} - Confianza: {rec.confidence:.0f}%")
-                print(f"   💰 Acción: {rec.suggested_shares} nominales a ${rec.target_price:,.2f}")
-                print(f"   💵 Inversión: ${investment:,.0f}")
-                print(f"   💡 Razón: {rec.reasons[0] if rec.reasons else 'N/A'}")
-                
-                if rec.stop_loss_price:
-                    print(f"   🚨 Stop loss: ${rec.stop_loss_price:,.2f}")
-                if rec.take_profit_price:
-                    print(f"   🎯 Take profit: ${rec.take_profit_price:,.2f}")
-                
-                print(f"   ⚠️ Riesgo: {rec.risk_assessment}")
-                print()
-        
-        # Plan de ejecución
-        print(f"\n🎯 PLAN DE EJECUCIÓN")
-        print("="*50)
-        
-        if execution_plan['immediate_actions']:
-            print(f"🚨 ACCIONES INMEDIATAS (24 horas):")
-            for action in execution_plan['immediate_actions']:
-                print(f"   • {action['ticker']}: {action['action']} {action['shares']} nominales")
-        
-        if execution_plan['planned_actions']:
-            print(f"\n📅 ACCIONES PLANIFICADAS (esta semana):")
-            for action in execution_plan['planned_actions']:
-                print(f"   • {action['ticker']}: {action['action']} {action['shares']} nominales")
-        
-        if execution_plan['monitoring_alerts']:
-            print(f"\n👁️ MONITOREAR (ejecutar si condiciones persisten):")
-            for action in execution_plan['monitoring_alerts']:
-                print(f"   • {action['ticker']}: {action['action']} {action['shares']} nominales")
+        return emoji_map.get(action_type, '📈')
     
-    def _save_advanced_analysis_to_db(self, analysis: dict):
-        """Guarda análisis avanzado en la base de datos"""
+    def _combine_analyses(self, rules_analysis: dict, expert_analysis: dict) -> dict:
+        """Combina ambos análisis en recomendación unificada"""
+        
+        # Extraer recomendaciones del sistema de reglas
+        rules_recs = rules_analysis.get('recommendations', [])
+        rules_immediate = rules_analysis.get('execution_plan', {}).get('immediate_actions', [])
+        
+        # Extraer recomendaciones del experto
+        expert_immediate = expert_analysis.get('immediate_actions', [])
+        expert_short_term = expert_analysis.get('short_term_actions', [])
+        
+        # Crear recomendación combinada priorizando al experto en casos de conflicto
+        combined = {
+            'source': 'hybrid_analysis',
+            'priority_recommendations': [],
+            'consensus_actions': [],
+            'conflicting_opinions': [],
+            'final_recommendation': ''
+        }
+        
+        # Priorizar acciones inmediatas del experto
+        if expert_immediate:
+            combined['priority_recommendations'] = expert_immediate
+            combined['final_recommendation'] = 'Priorizar recomendaciones del agente experto para acciones inmediatas'
+        
+        # Buscar consenso entre ambos sistemas
+        expert_tickers = set()
+        for action in expert_short_term:
+            expert_tickers.add(action.get('ticker', ''))
+        
+        rules_tickers = set()
+        for rec in rules_recs:
+            rules_tickers.add(rec.ticker)
+        
+        # Tickers que ambos sistemas recomiendan actuar
+        consensus_tickers = expert_tickers.intersection(rules_tickers)
+        if consensus_tickers:
+            combined['consensus_actions'] = list(consensus_tickers)
+        
+        # Identificar conflictos
+        if rules_recs and expert_short_term:
+            for rules_rec in rules_recs:
+                expert_action = next(
+                    (a for a in expert_short_term if a.get('ticker') == rules_rec.ticker), 
+                    None
+                )
+                if expert_action:
+                    if self._actions_conflict(rules_rec, expert_action):
+                        combined['conflicting_opinions'].append({
+                            'ticker': rules_rec.ticker,
+                            'rules_action': rules_rec.action.value,
+                            'expert_action': expert_action.get('action', 'unknown'),
+                            'rules_confidence': rules_rec.confidence,
+                            'expert_reasoning': expert_action.get('reason', 'No reason provided')
+                        })
+        
+        return combined
+    
+    def _actions_conflict(self, rules_rec, expert_action) -> bool:
+        """Determina si las recomendaciones de reglas y experto están en conflicto"""
+        rules_action = rules_rec.action.value
+        expert_action_type = expert_action.get('action', '')
+        
+        # Definir conflictos obvios
+        conflicts = {
+            'rebalanceo': ['hold_and_monitor', 'monitor_closely'],
+            'toma_ganancias': ['hold_and_monitor'],
+            'stop_loss': ['partial_profit_taking']
+        }
+        
+        return expert_action_type in conflicts.get(rules_action, [])
+    
+    def _save_comparative_analysis_to_db(self, rules_analysis: dict, expert_analysis: dict, combined: dict):
+        """Guarda análisis comparativo en la base de datos"""
         try:
             today = date.today()
             
-            # Guardar métricas de cartera
-            portfolio_metrics = {
+            # Guardar análisis comparativo
+            comparative_data = {
                 'fecha': today.isoformat(),
-                'valor_total': analysis['portfolio_metrics']['total_value'],
-                'pnl_total': analysis['portfolio_metrics']['total_pnl'],
-                'pnl_porcentaje': analysis['portfolio_metrics']['total_pnl_pct'],
-                'cash_allocation': analysis['portfolio_metrics']['cash_allocation'],
-                'num_posiciones': analysis['portfolio_metrics']['number_of_positions'],
-                'sharpe_ratio': analysis['portfolio_metrics']['risk_metrics']['sharpe_ratio'],
-                'concentration_risk': analysis['portfolio_metrics']['risk_metrics']['concentration_risk'],
-                'risk_level': analysis['risk_assessment']['overall_risk'],
-                'risk_score': analysis['risk_assessment']['risk_score']
+                'rules_recommendations_count': len(rules_analysis.get('recommendations', [])),
+                'expert_immediate_count': len(expert_analysis.get('immediate_actions', [])),
+                'expert_short_term_count': len(expert_analysis.get('short_term_actions', [])),
+                'consensus_tickers': len(combined.get('consensus_actions', [])),
+                'conflicting_opinions': len(combined.get('conflicting_opinions', [])),
+                'expert_risk_level': expert_analysis.get('risk_assessment', {}).get('overall_risk_level', 0),
+                'final_recommendation_source': combined.get('final_recommendation', ''),
+                'expert_reasoning': expert_analysis.get('reasoning', '')[:500]  # Truncar a 500 chars
             }
             
-            self.db.supabase.table('portfolio_metrics_advanced').upsert(portfolio_metrics).execute()
-            
-            # Guardar recomendaciones avanzadas
-            recommendations_data = []
-            for rec in analysis['recommendations']:
-                rec_data = {
-                    'fecha': today.isoformat(),
-                    'ticker': rec.ticker,
-                    'action_type': rec.action.value,
-                    'suggested_shares': rec.suggested_shares,
-                    'target_price': rec.target_price,
-                    'confidence': int(rec.confidence),
-                    'primary_reason': rec.reasons[0] if rec.reasons else '',
-                    'risk_assessment': rec.risk_assessment,
-                    'stop_loss_price': rec.stop_loss_price,
-                    'take_profit_price': rec.take_profit_price
-                }
-                recommendations_data.append(rec_data)
-            
-            if recommendations_data:
-                self.db.supabase.table('advanced_recommendations').insert(recommendations_data).execute()
-                print(f"✅ {len(recommendations_data)} recomendaciones avanzadas guardadas en BD")
+            self.db.supabase.table('comparative_analysis').insert(comparative_data).execute()
+            print("✅ Análisis comparativo guardado en BD")
             
         except Exception as e:
-            print(f"⚠️ Error guardando análisis avanzado: {str(e)}")
+            print(f"⚠️ Error guardando análisis comparativo: {str(e)}")
     
-    def _send_advanced_whatsapp_notification(self, analysis: dict):
-        """Envía notificación avanzada por WhatsApp"""
+    def _send_comparative_whatsapp_notification(self, rules_analysis: dict, expert_analysis: dict, combined: dict):
+        """Envía notificación comparativa por WhatsApp"""
         try:
             from scraper.notifications.whatsapp_notifier import WhatsAppNotifier
             
             notifier = WhatsAppNotifier()
             if notifier.is_configured:
-                message = self._format_advanced_whatsapp_message(analysis)
+                message = self._format_comparative_whatsapp_message(rules_analysis, expert_analysis, combined)
                 success = notifier.send_message(message)
                 if success:
-                    print("✅ Notificación avanzada enviada por WhatsApp")
+                    print("✅ Notificación comparativa enviada por WhatsApp")
                 else:
-                    print("⚠️ Error enviando notificación avanzada")
+                    print("⚠️ Error enviando notificación comparativa")
             else:
                 print("📱 WhatsApp no configurado - saltando notificación")
         
         except ImportError:
             print("📱 WhatsApp notifier no disponible")
         except Exception as e:
-            print(f"⚠️ Error enviando WhatsApp avanzado: {str(e)}")
+            print(f"⚠️ Error enviando WhatsApp comparativo: {str(e)}")
     
-    def _format_advanced_whatsapp_message(self, analysis: dict) -> str:
-        """Formatea mensaje avanzado para WhatsApp con acciones específicas"""
+    def _format_comparative_whatsapp_message(self, rules_analysis: dict, expert_analysis: dict, combined: dict) -> str:
+        """Formatea mensaje comparativo completo para WhatsApp"""
         timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
-        metrics = analysis['portfolio_metrics']
-        risk = analysis['risk_assessment']
-        recommendations = analysis['recommendations']
-        execution_plan = analysis['execution_plan']
+        metrics = rules_analysis['portfolio_metrics']
         
-        message = f"📊 *ANÁLISIS BALANZ* - {timestamp}\n"
-        message += "="*30 + "\n\n"
+        message = f"*ANÁLISIS HÍBRIDO* - {timestamp}\n"
+        message += "=" * 30 + "\n\n"
         
-        # Resumen ejecutivo compacto
-        message += f"💼 *RESUMEN*\n"
+        # Resumen de cartera
+        message += "*CARTERA ACTUAL*\n"
         message += f"💰 Valor: ${metrics['total_value']:,.0f}\n"
         message += f"📈 P&L: ${metrics['total_pnl']:,.0f} ({metrics['total_pnl_pct']:+.1f}%)\n"
-        message += f"⚠️ Riesgo: {risk['overall_risk'].upper()}\n\n"
+        message += f"⏱️ Días promedio: {metrics['risk_metrics']['avg_days_held']:.1f}\n"
+        message += f"💵 Efectivo: {metrics['cash_allocation']:.1%}\n\n"
         
-        # ACCIONES INMEDIATAS (más críticas)
-        immediate_actions = execution_plan.get('immediate_actions', [])
-        if immediate_actions:
-            message += f"🚨 *URGENTE - HACER HOY*\n"
-            message += "-"*20 + "\n"
-            for action in immediate_actions:
-                if 'stop_loss' in action['action'] or 'trailing_stop' in action['action']:
-                    message += f"🔴 VENDER {action['ticker']}: {action['shares']} nominales\n"
-                    message += f"   💰 A ${action['price_target']:,.0f} c/u\n"
-                else:
-                    message += f"• {action['ticker']}: {action['action']} {action['shares']} nominales\n"
+        # AGENTE EXPERTO - ACCIONES INMEDIATAS
+        expert_immediate = expert_analysis.get('acciones_inmediatas', [])
+        if expert_immediate:
+            message += "*🚨 EXPERTO - URGENTE*\n"
+            message += "-" * 20 + "\n"
+            for action in expert_immediate:
+                message += f"• *{action.get('ticker', 'N/A')}*: {action.get('accion', 'N/A')}\n"
+                message += f"  ⚠️ {action.get('razon', 'N/A')[:80]}...\n\n"
+        
+        # AGENTE EXPERTO - ACCIONES DE CORTO PLAZO
+        expert_short = expert_analysis.get('acciones_corto_plazo', [])
+        if expert_short:
+            message += "*📅 EXPERTO - PRÓXIMOS 2-3 DÍAS*\n"
+            message += "-" * 25 + "\n"
+            
+            # Separar ventas, compras y monitoreos
+            sells = []
+            monitors = []
+            
+            for action in expert_short:
+                action_type = action.get('accion', '').lower()
+                if any(word in action_type for word in ['vender', 'reducir', 'toma_ganancias']):
+                    sells.append(action)
+                elif any(word in action_type for word in ['mantener', 'monitorear']):
+                    monitors.append(action)
+            
+            if sells:
+                message += "*VENDER/REDUCIR:*\n"
+                for action in sells:
+                    ticker = action.get('ticker', 'N/A')
+                    shares = action.get('nominales_vender', 'N/A')
+                    message += f"• *{ticker}*: {shares} nominales\n"
+                    message += f"  💡 {action.get('razon', 'N/A')[:60]}...\n"
+                message += "\n"
+            
+            if monitors:
+                message += "*MANTENER/MONITOREAR:*\n"
+                for action in monitors:
+                    message += f"• *{action.get('ticker', 'N/A')}*: Mantener\n"
+                message += "\n"
+        
+        # SISTEMA DE REGLAS - COMPARACIÓN
+        rules_recs = rules_analysis.get('recommendations', [])
+        if rules_recs:
+            message += "*📊 SISTEMA REGLAS vs EXPERTO*\n"
+            message += "-" * 25 + "\n"
+            
+            conflicts_found = False
+            for rec in rules_recs:
+                ticker = rec.ticker
+                rules_action = rec.action.value
+                
+                # Buscar recomendación del experto para el mismo ticker
+                expert_action_obj = next(
+                    (a for a in expert_short if a.get('ticker') == ticker),
+                    None
+                )
+                
+                if expert_action_obj:
+                    expert_action = expert_action_obj.get('accion', 'No especificada')
+                    
+                    # Mostrar comparación
+                    message += f"*{ticker}*:\n"
+                    message += f"📊 Reglas: {rules_action} {rec.suggested_shares} nominales\n"
+                    message += f"🤖 Experto: {expert_action}\n"
+                    
+                    # Marcar si hay conflicto
+                    if self._detect_conflict_spanish(rules_action, expert_action):
+                        message += f"⚠️ *CONFLICTO DE OPINIÓN*\n"
+                        conflicts_found = True
+                    else:
+                        message += f"✅ Recomendaciones similares\n"
+                    message += "\n"
+            
+            if conflicts_found:
+                message += "❗ *En caso de conflicto, priorizar EXPERTO*\n\n"
+        
+        # EVALUACIÓN DE RIESGO
+        risk = expert_analysis.get('evaluacion_riesgo', {})
+        if risk:
+            message += f"*⚠️ EVALUACIÓN RIESGO*\n"
+            message += f"Nivel: *{risk.get('nivel_riesgo_general', 'N/A')}/10*\n"
+            key_risks = risk.get('riesgos_clave', [])
+            if key_risks:
+                message += f"Factor crítico:\n"
+                message += f"• {key_risks[0][:70]}...\n\n"
+        
+        # RECOMENDACIONES ESTRATÉGICAS
+        strategic = expert_analysis.get('recomendaciones_estrategicas', [])
+        if strategic:
+            message += "*🎯 ESTRATEGIA GENERAL*\n"
+            for rec in strategic[:2]:  # Top 2
+                message += f"• {rec[:80]}...\n"
             message += "\n"
         
-        # ACCIONES PLANIFICADAS (esta semana)
-        planned_actions = execution_plan.get('planned_actions', [])
-        if planned_actions:
-            message += f"📅 *HACER ESTA SEMANA*\n"
-            message += "-"*20 + "\n"
-            
-            # Separar ventas y compras para mayor claridad
-            sales = [a for a in planned_actions if 'rebalanceo' in a['action'] or 'reducir' in a['action']]
-            buys = [a for a in planned_actions if 'compra' in a['action']]
-            
-            if sales:
-                message += f"🔴 *VENDER:*\n"
-                for action in sales:
-                    message += f"• {action['ticker']}: {action['shares']} nominales\n"
-                    message += f"  💰 ~${action['shares'] * action['price_target']:,.0f}\n"
-            
-            if buys:
-                message += f"🟢 *COMPRAR:*\n"
-                for action in buys:
-                    message += f"• {action['ticker']}: {action['shares']} nominales\n"
-                    message += f"  💰 ~${action['shares'] * action['price_target']:,.0f}\n"
-            
+        # PLAN DE ACCIÓN ESPECÍFICO
+        message += "*📋 PLAN DE ACCIÓN*\n"
+        message += "-" * 15 + "\n"
+        
+        if expert_immediate:
+            message += "*HOY (urgente):*\n"
+            for action in expert_immediate:
+                message += f"• {action.get('ticker')}: {action.get('accion')}\n"
             message += "\n"
         
-        # OPORTUNIDADES DE MONITOREO (menos críticas)
-        monitoring_alerts = execution_plan.get('monitoring_alerts', [])
-        if monitoring_alerts:
-            message += f"👁️ *MONITOREAR*\n"
-            message += "-"*15 + "\n"
-            for action in monitoring_alerts[:3]:  # Solo top 3
-                if 'compra' in action['action']:
-                    message += f"📊 {action['ticker']}: Comprar {action['shares']} si persiste oportunidad\n"
+        if sells:
+            message += "*2-3 DÍAS:*\n"
+            for action in sells:
+                shares = action.get('nominales_vender', 'N/A')
+                message += f"• Vender {action.get('ticker')} {shares} nominales\n"
             message += "\n"
         
-        # Resumen de efectivo después de operaciones
-        cash_after_sales = metrics.get('cash_allocation', 0) * metrics['total_value']
-        planned_sales_value = sum(a['shares'] * a['price_target'] for a in planned_actions if 'rebalanceo' in a['action'] or 'reducir' in a['action'])
-        
-        if planned_sales_value > 0:
-            total_cash_after = cash_after_sales + planned_sales_value
-            message += f"💵 *EFECTIVO DESPUÉS DE VENTAS*\n"
-            message += f"Disponible: ~${total_cash_after:,.0f}\n\n"
-        
-        # Factores de riesgo críticos
-        if risk['risk_factors']:
-            message += f"⚠️ *ALERTAS*\n"
-            message += "-"*10 + "\n"
-            for factor in risk['risk_factors'][:2]:  # Solo top 2
-                if 'posición' in factor.lower():
-                    message += f"• {factor}\n"
-                elif 'concentración' in factor.lower():
-                    message += f"• Diversificar más\n"
+        if monitors:
+            message += "*MONITOREAR:*\n"
+            for action in monitors:
+                message += f"• {action.get('ticker')}: Evaluar en 3-5 días\n"
             message += "\n"
         
-        message += f"🤖 _Sistema automatizado_\n"
-        message += f"📞 _Confirmar antes de ejecutar_"
+        # Efectivo proyectado
+        if sells:
+            estimated_cash_from_sales = 0
+            positions = rules_analysis['positions_analysis']
+            for action in sells:
+                ticker = action.get('ticker')
+                shares_to_sell = action.get('nominales_vender', 0)
+                position = next((p for p in positions if p.ticker == ticker), None)
+                if position and isinstance(shares_to_sell, int):
+                    estimated_cash_from_sales += shares_to_sell * position.current_price
+            
+            if estimated_cash_from_sales > 0:
+                current_cash = metrics.get('cash_allocation', 0) * metrics['total_value']
+                total_cash = current_cash + estimated_cash_from_sales
+                message += f"💵 *EFECTIVO DESPUÉS DE VENTAS*\n"
+                message += f"Disponible: ~${total_cash:,.0f}\n\n"
+        
+        message += "*🤖 Análisis híbrido: Reglas + IA*\n"
+        message += "*⚠️ Confirmar precios antes de ejecutar*"
+        
+        return message
+    
+    def _detect_conflict_spanish(self, rules_action: str, expert_action: str) -> bool:
+        """Detecta conflictos entre recomendaciones en español"""
+        # Convertir a minúsculas para comparación
+        rules_lower = rules_action.lower()
+        expert_lower = expert_action.lower()
+        
+        # Conflictos obvios
+        sell_actions = ['vender', 'reducir', 'toma_ganancias']
+        hold_actions = ['mantener', 'monitorear']
+        buy_actions = ['comprar', 'promedio']
+        
+        rules_is_sell = any(action in rules_lower for action in sell_actions)
+        rules_is_hold = any(action in rules_lower for action in hold_actions)  
+        rules_is_buy = any(action in rules_lower for action in buy_actions)
+        
+        expert_is_sell = any(action in expert_lower for action in sell_actions)
+        expert_is_hold = any(action in expert_lower for action in hold_actions)
+        expert_is_buy = any(action in expert_lower for action in buy_actions)
+        
+        # Detectar conflictos directos
+        if (rules_is_sell and expert_is_buy) or (rules_is_buy and expert_is_sell):
+            return True
+        
+        if rules_lower == 'rebalanceo' and expert_is_hold:
+            return True
+            
+        return False            conflicts = combined.get('conflicting_opinions', [])
+            if conflicts:
+                message += "⚠️ OPINIONES DIVIDIDAS\n"
+                message += "-" * 15 + "\n"
+                for conflict in conflicts[:2]:
+                    message += f"• {conflict['ticker']}: Sistema dice {conflict['rules_action']}, Experto dice {conflict['expert_action']}\n"
+                message += "\n"
+        
+        # Evaluación de riesgo del experto
+        risk = expert_analysis.get('evaluacion_riesgo', {})
+        if risk:
+            message += f"EVALUACIÓN RIESGO\n"
+            message += f"Nivel: {risk.get('nivel_riesgo_general', 'N/A')}/10\n"
+            key_risks = risk.get('riesgos_clave', [])
+            if key_risks:
+                message += f"Factor clave: {key_risks[0][:50]}...\n"
+            message += "\n"
+        
+        # Recomendación final
+        reasoning = expert_analysis.get('razonamiento', '')
+        if reasoning:
+            message += "CONCLUSIÓN EXPERTO\n"
+            message += f"{reasoning[:100]}...\n\n"
+        
+        message += "🤖 Análisis híbrido: Reglas + IA\n"
+        message += "⚠️ Verificar antes de ejecutar"
         
         return message
     
     def get_portfolio_summary(self):
-        """Devuelve resumen avanzado de la cartera"""
+        """Devuelve resumen híbrido de la cartera"""
         if not self.portfolio_data:
             return None
         
@@ -333,6 +557,7 @@ class PortfolioManager:
                 'ganancia_perdida': self.portfolio_data['ganancia_perdida_total'],
                 'cantidad_activos': len(self.portfolio_data['activos'])
             },
-            'advanced_available': True,
-            'last_analysis': datetime.now().isoformat()
+            'analysis_methods': ['rules_based', 'expert_agent'],
+            'last_analysis': datetime.now().isoformat(),
+            'hybrid_analysis_available': True
         }

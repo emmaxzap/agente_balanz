@@ -1,4 +1,4 @@
-# analysis/financial_analyzer.py - Analizador financiero basado en rendimiento anualizado
+# analysis/financial_analyzer.py - Analizador financiero profesional para corto plazo
 import pandas as pd
 import numpy as np
 from datetime import date, timedelta
@@ -8,22 +8,33 @@ class FinancialAnalyzer:
     def __init__(self, db_manager):
         self.db = db_manager
         
-        # Criterios de rendimiento anualizado para decisiones
-        self.criterios = {
-            'venta_inmediata': 500,      # >500% anualizado = venta inmediata
-            'venta_fuerte': 200,         # >200% anualizado = venta fuerte
-            'venta_moderada': 100,       # >100% anualizado = considerar venta
-            'mantener_superior': 50,     # 50-100% anualizado = mantener (buen rendimiento)
-            'mantener_moderado': 20,     # 20-50% anualizado = mantener
-            'mantener_bajo': 0,          # 0-20% anualizado = mantener pero evaluar
-            'stop_loss': -50             # <-50% anualizado = stop loss
+        # Criterios profesionales ajustados por marco temporal
+        self.criterios_corto_plazo = {
+            # Posiciones 0-3 días
+            'new_stop_loss': -8,               # Stop loss más estricto
+            'new_profit_taking': 15,           # Tomar ganancias más rápido
+            'new_volatility_limit': 12,        # Límite de volatilidad diaria
+            
+            # Posiciones 4-30 días  
+            'established_stop_loss': -12,      # Stop loss moderado
+            'established_profit_taking': 25,   # Tomar ganancias moderado
+            'established_volatility_limit': 8, # Volatilidad moderada
+            
+            # Posiciones 30+ días
+            'mature_stop_loss': -20,           # Stop loss flexible
+            'mature_profit_taking': 40,        # Tomar ganancias conservador
+            'mature_volatility_limit': 15,     # Mayor tolerancia volatilidad
+            
+            # Criterios generales
+            'momentum_threshold': 3,           # Días para confirmar momentum
+            'technical_weight': 0.8,           # 80% peso análisis técnico vs fundamental
         }
     
     def analyze_asset_for_decision(self, ticker: str, current_price: float = None) -> Dict:
-        """Analiza un activo para determinar si es momento de comprar, vender o mantener"""
+        """Análisis de activo optimizado para decisiones de corto plazo"""
         try:
-            # 1. Obtener datos históricos con período más largo
-            historical_data = self._get_historical_data(ticker, days=60)
+            # 1. Obtener datos históricos con enfoque en corto plazo
+            historical_data = self._get_historical_data(ticker, days=30)  # Reducido a 30 días
             
             if historical_data.empty:
                 return self._create_no_data_result(ticker)
@@ -35,11 +46,11 @@ class FinancialAnalyzer:
             if not current_price:
                 current_price = historical_data['precio_cierre'].iloc[-1]
             
-            # 3. Calcular indicadores básicos de mercado
-            market_indicators = self._calculate_market_indicators(historical_data, current_price)
+            # 3. Calcular indicadores técnicos específicos para corto plazo
+            technical_indicators = self._calculate_short_term_indicators(historical_data, current_price)
             
-            # 4. Generar recomendación de compra con rigor estadístico
-            recommendation = self._generate_buy_recommendation_rigorous(ticker, market_indicators, historical_data, current_price)
+            # 4. Generar recomendación con peso en análisis técnico
+            recommendation = self._generate_short_term_recommendation(ticker, technical_indicators, historical_data, current_price)
             
             return recommendation
             
@@ -47,24 +58,18 @@ class FinancialAnalyzer:
             return self._create_error_result(ticker, str(e))
     
     def analyze_portfolio_for_sell_decisions(self, portfolio_assets: List[Dict]) -> List[Dict]:
-        """Analiza activos de la cartera para decisiones de venta basadas en rendimiento anualizado"""
+        """Análisis profesional de decisiones de venta según marco temporal"""
         sell_recommendations = []
         
         for asset in portfolio_assets:
             ticker = asset['ticker']
-            dias_tenencia = asset.get('dias_tenencia', 1)
+            dias_tenencia = max(asset.get('dias_tenencia', 0), 0)
             ganancia_perdida_pct = asset['ganancia_perdida_porcentaje']
             current_value = asset['valor_actual_total']
             
-            # Calcular rendimiento anualizado
-            if dias_tenencia > 0:
-                rendimiento_anualizado = (ganancia_perdida_pct / dias_tenencia) * 365
-            else:
-                rendimiento_anualizado = 0
-            
-            # Evaluar decisión de venta
-            sell_decision = self._evaluate_sell_decision_financial(
-                asset, rendimiento_anualizado
+            # Evaluar decisión de venta con criterios específicos por plazo
+            sell_decision = self._evaluate_sell_decision_by_timeframe(
+                asset, dias_tenencia, ganancia_perdida_pct, current_value, ticker
             )
             
             if sell_decision['recommendation'] == 'VENTA':
@@ -73,7 +78,7 @@ class FinancialAnalyzer:
         return sell_recommendations
     
     def analyze_market_for_buy_opportunities(self, available_money: float, owned_tickers: List[str] = None) -> List[Dict]:
-        """Analiza el mercado buscando oportunidades de compra con criterios rigurosos"""
+        """Análisis de oportunidades de compra con criterios técnicos intensivos"""
         if owned_tickers is None:
             owned_tickers = []
         
@@ -85,7 +90,7 @@ class FinancialAnalyzer:
         try:
             # Obtener tickers con datos recientes
             end_date = date.today()
-            start_date = end_date - timedelta(days=10)
+            start_date = end_date - timedelta(days=7)  # Solo últimos 7 días
             
             result = self.db.supabase.table('precios_historico')\
                 .select('ticker')\
@@ -95,36 +100,27 @@ class FinancialAnalyzer:
             if not result.data:
                 return []
             
-            # Obtener tickers únicos
             available_tickers = list(set([row['ticker'] for row in result.data]))
-            
-            # Filtrar tickers que no se poseen
             new_tickers = [t for t in available_tickers if t not in owned_tickers]
             
-            print(f"Analizando {len(new_tickers)} tickers para oportunidades de compra...")
+            print(f"Analizando {len(new_tickers)} tickers para oportunidades técnicas...")
             
             valid_analyses = 0
-            insufficient_data = 0
             
-            # Analizar cada ticker
-            for i, ticker in enumerate(new_tickers[:25]):
+            # Analizar con enfoque técnico intensivo
+            for i, ticker in enumerate(new_tickers[:20]):  # Top 20
                 try:
                     if i % 5 == 0:
-                        print(f"   Progreso: {i+1}/{min(25, len(new_tickers))}")
+                        print(f"   Progreso: {i+1}/{min(20, len(new_tickers))}")
                     
                     analysis = self.analyze_asset_for_decision(ticker)
                     
-                    # Verificar si el análisis es válido
-                    if 'insufficient_data' in str(analysis.get('reasons', [])):
-                        insufficient_data += 1
-                        continue
-                    
-                    valid_analyses += 1
-                    
-                    if analysis['recommendation'] == 'COMPRA':
-                        # Calcular cantidad sugerida
-                        suggested_investment = min(available_money * 0.15, 40000)
-                        suggested_quantity = int(suggested_investment / analysis['current_price'])
+                    if analysis['recommendation'] == 'COMPRA' and analysis['confidence'] >= 85:
+                        valid_analyses += 1
+                        
+                        # Tamaño de posición conservador para nuevas posiciones
+                        max_investment = min(available_money * 0.12, 15000)  # 12% o $15k máximo
+                        suggested_quantity = max(1, int(max_investment / analysis['current_price']))
                         
                         if suggested_quantity > 0:
                             opportunity = {
@@ -136,7 +132,7 @@ class FinancialAnalyzer:
                                 'suggested_investment': suggested_quantity * analysis['current_price'],
                                 'reasons': analysis['reasons'],
                                 'score_details': analysis.get('score_details', {}),
-                                'data_quality': analysis.get('indicators', {}).get('data_points', 0)
+                                'technical_strength': analysis.get('indicators', {}).get('trend_strength', 0)
                             }
                             
                             buy_opportunities.append(opportunity)
@@ -144,28 +140,25 @@ class FinancialAnalyzer:
                 except Exception as e:
                     continue
             
-            # Ordenar por confianza y calidad de datos
-            buy_opportunities.sort(key=lambda x: (x['confidence'], x['data_quality']), reverse=True)
+            # Ordenar por strength técnica y confianza
+            buy_opportunities.sort(
+                key=lambda x: (x['technical_strength'], x['confidence']), 
+                reverse=True
+            )
             
-            print(f"Análisis completado:")
+            print(f"Análisis técnico completado:")
             print(f"   Análisis válidos: {valid_analyses}")
-            print(f"   Datos insuficientes: {insufficient_data}")
-            print(f"   Oportunidades encontradas: {len(buy_opportunities)}")
+            print(f"   Oportunidades técnicas: {len(buy_opportunities)}")
             
-            return buy_opportunities[:8]
+            return buy_opportunities[:8]  # Top 8 oportunidades técnicas
             
         except Exception as e:
-            print(f"Error buscando oportunidades: {str(e)}")
+            print(f"Error buscando oportunidades técnicas: {str(e)}")
             return []
     
-    def _evaluate_sell_decision_financial(self, asset: Dict, rendimiento_anualizado: float) -> Dict:
-        """Evalúa si un activo debe venderse basado en criterios financieros reales"""
+    def _evaluate_sell_decision_by_timeframe(self, asset: Dict, dias_tenencia: int, ganancia_perdida_pct: float, current_value: float, ticker: str) -> Dict:
+        """Evalúa venta según marco temporal específico"""
         try:
-            ticker = asset['ticker']
-            ganancia_perdida_pct = asset['ganancia_perdida_porcentaje']
-            dias_tenencia = asset.get('dias_tenencia', 1)
-            current_value = asset['valor_actual_total']
-            
             sell_decision = {
                 'ticker': ticker,
                 'recommendation': 'MANTENER',
@@ -174,48 +167,74 @@ class FinancialAnalyzer:
                 'current_value': current_value,
                 'gain_loss_pct': ganancia_perdida_pct,
                 'dias_tenencia': dias_tenencia,
-                'rendimiento_anualizado': rendimiento_anualizado
+                'timeframe_category': self._get_timeframe_category(dias_tenencia)
             }
             
-            # Criterios basados en rendimiento anualizado
-            if rendimiento_anualizado >= self.criterios['venta_inmediata']:
+            # Determinar criterios según plazo
+            if dias_tenencia <= 3:
+                # Posiciones nuevas - Criterios más estrictos
+                stop_threshold = self.criterios_corto_plazo['new_stop_loss']
+                profit_threshold = self.criterios_corto_plazo['new_profit_taking']
+                category = "nueva"
+            elif dias_tenencia <= 30:
+                # Posiciones establecidas - Criterios moderados
+                stop_threshold = self.criterios_corto_plazo['established_stop_loss']
+                profit_threshold = self.criterios_corto_plazo['established_profit_taking']
+                category = "establecida"
+            else:
+                # Posiciones maduras - Criterios flexibles
+                stop_threshold = self.criterios_corto_plazo['mature_stop_loss']
+                profit_threshold = self.criterios_corto_plazo['mature_profit_taking']
+                category = "madura"
+            
+            # Obtener análisis técnico para contexto
+            technical_analysis = self.analyze_asset_for_decision(ticker)
+            momentum = technical_analysis.get('indicators', {}).get('trend', 'FLAT')
+            
+            # Evaluar según criterios específicos
+            if ganancia_perdida_pct <= stop_threshold:
+                # Stop loss activado
                 sell_decision.update({
                     'recommendation': 'VENTA',
                     'confidence': 95,
-                    'primary_reason': f'Rendimiento excepcional {rendimiento_anualizado:.0f}% anualizado - venta inmediata'
+                    'primary_reason': f'Stop loss activado - pérdida {ganancia_perdida_pct:.1f}% en posición {category} ({dias_tenencia} días)'
                 })
             
-            elif rendimiento_anualizado >= self.criterios['venta_fuerte']:
+            elif ganancia_perdida_pct >= profit_threshold:
+                # Tomar ganancias - ajustar por momentum
+                if momentum == 'UP' and dias_tenencia <= 7:
+                    # Momentum positivo en posición reciente - tomar solo parcial
+                    confidence = 70
+                    reason = f'Toma ganancias parcial - {ganancia_perdida_pct:.1f}% en posición {category} con momentum positivo'
+                else:
+                    # Sin momentum fuerte - tomar ganancias completas
+                    confidence = 85
+                    reason = f'Toma ganancias - {ganancia_perdida_pct:.1f}% en posición {category}'
+                
                 sell_decision.update({
                     'recommendation': 'VENTA',
-                    'confidence': 85,
-                    'primary_reason': f'Rendimiento alto {rendimiento_anualizado:.0f}% anualizado - toma de ganancias'
+                    'confidence': confidence,
+                    'primary_reason': reason
                 })
             
-            elif rendimiento_anualizado >= self.criterios['venta_moderada']:
-                sell_decision.update({
-                    'recommendation': 'VENTA',
-                    'confidence': 70,
-                    'primary_reason': f'Rendimiento bueno {rendimiento_anualizado:.0f}% anualizado - considerar venta'
-                })
-            
-            elif rendimiento_anualizado <= self.criterios['stop_loss']:
+            elif dias_tenencia == 0 and ganancia_perdida_pct <= -5:
+                # Stop loss rápido para posiciones del mismo día
                 sell_decision.update({
                     'recommendation': 'VENTA',
                     'confidence': 90,
-                    'primary_reason': f'Stop loss activado {rendimiento_anualizado:.0f}% anualizado'
+                    'primary_reason': f'Stop loss rápido - pérdida {ganancia_perdida_pct:.1f}% en posición del mismo día'
                 })
             
             else:
-                # Mantener - determinar razón específica
-                if rendimiento_anualizado >= self.criterios['mantener_superior']:
-                    reason = f'Buen rendimiento {rendimiento_anualizado:.0f}% anualizado - mantener'
-                elif rendimiento_anualizado >= self.criterios['mantener_moderado']:
-                    reason = f'Rendimiento moderado {rendimiento_anualizado:.0f}% anualizado - mantener'
-                elif rendimiento_anualizado >= self.criterios['mantener_bajo']:
-                    reason = f'Rendimiento bajo {rendimiento_anualizado:.0f}% anualizado - evaluar'
+                # Mantener - dar razón específica
+                if momentum == 'DOWN' and ganancia_perdida_pct < 0:
+                    reason = f'Mantener con precaución - pérdida {ganancia_perdida_pct:.1f}% y momentum negativo'
+                    sell_decision['confidence'] = 30  # Baja confianza en mantener
+                elif momentum == 'UP' and ganancia_perdida_pct > 0:
+                    reason = f'Mantener - ganancia {ganancia_perdida_pct:.1f}% con momentum positivo'
+                    sell_decision['confidence'] = 80  # Alta confianza en mantener
                 else:
-                    reason = f'Rendimiento negativo {rendimiento_anualizado:.0f}% anualizado - evaluar recuperación'
+                    reason = f'Mantener posición {category} - {ganancia_perdida_pct:+.1f}% en {dias_tenencia} días'
                 
                 sell_decision['primary_reason'] = reason
             
@@ -223,14 +242,195 @@ class FinancialAnalyzer:
             
         except Exception as e:
             return {
-                'ticker': asset.get('ticker', 'UNKNOWN'),
+                'ticker': ticker,
                 'recommendation': 'MANTENER',
                 'confidence': 0,
                 'primary_reason': f'Error en análisis: {str(e)}'
             }
     
-    def _get_historical_data(self, ticker: str, days: int = 60) -> pd.DataFrame:
-        """Obtiene datos históricos del activo"""
+    def _get_timeframe_category(self, dias_tenencia: int) -> str:
+        """Determina categoría de marco temporal"""
+        if dias_tenencia <= 3:
+            return "nueva"
+        elif dias_tenencia <= 30:
+            return "establecida"
+        else:
+            return "madura"
+    
+    def _calculate_short_term_indicators(self, df: pd.DataFrame, current_price: float) -> Dict:
+        """Calcula indicadores técnicos optimizados para corto plazo"""
+        try:
+            prices = df['precio_cierre'].values
+            
+            indicators = {
+                'current_price': current_price,
+                'data_points': len(prices),
+                'timeframe': 'short_term'
+            }
+            
+            if len(prices) < 3:
+                indicators['insufficient_data'] = True
+                return indicators
+            
+            # SMA más cortas para análisis de corto plazo
+            if len(prices) >= 3:
+                indicators['sma_3'] = np.mean(prices[-3:])
+            
+            if len(prices) >= 5:
+                indicators['sma_5'] = np.mean(prices[-5:])
+            
+            if len(prices) >= 7:
+                indicators['sma_7'] = np.mean(prices[-7:])
+            
+            # Rango de precios reciente
+            recent_period = min(10, len(prices))
+            indicators['max_recent'] = np.max(prices[-recent_period:])
+            indicators['min_recent'] = np.min(prices[-recent_period:])
+            
+            # Posición en rango
+            if indicators['max_recent'] != indicators['min_recent']:
+                indicators['position_in_range'] = (current_price - indicators['min_recent']) / (indicators['max_recent'] - indicators['min_recent'])
+            else:
+                indicators['position_in_range'] = 0.5
+            
+            # Tendencia de corto plazo
+            trend_period = min(5, len(prices))
+            if trend_period >= 3:
+                trend_slope = np.polyfit(range(trend_period), prices[-trend_period:], 1)[0]
+                indicators['trend_slope'] = trend_slope
+                
+                # Clasificar tendencia con mayor sensibilidad para corto plazo
+                if trend_slope > 10:  # Más sensible para detectar cambios rápidos
+                    indicators['trend'] = 'UP'
+                elif trend_slope < -10:
+                    indicators['trend'] = 'DOWN'
+                else:
+                    indicators['trend'] = 'FLAT'
+            
+            # Volatilidad reciente
+            if len(prices) >= 5:
+                recent_returns = np.diff(prices[-5:]) / prices[-6:-1] * 100
+                indicators['recent_volatility'] = np.std(recent_returns)
+            
+            # Momentum de corto plazo (últimos 3 vs 3 anteriores)
+            if len(prices) >= 6:
+                recent_avg = np.mean(prices[-3:])
+                previous_avg = np.mean(prices[-6:-3])
+                indicators['short_momentum'] = (recent_avg - previous_avg) / previous_avg * 100
+            
+            return indicators
+            
+        except Exception as e:
+            return {'current_price': current_price, 'data_points': 0, 'insufficient_data': True}
+    
+    def _generate_short_term_recommendation(self, ticker: str, indicators: Dict, historical_data: pd.DataFrame, current_price: float) -> Dict:
+        """Genera recomendación optimizada para trading de corto plazo"""
+        try:
+            recommendation = {
+                'ticker': ticker,
+                'current_price': current_price,
+                'recommendation': 'MANTENER',
+                'confidence': 50,
+                'reasons': [],
+                'indicators': indicators
+            }
+            
+            if indicators.get('insufficient_data'):
+                recommendation['reasons'] = ['Datos insuficientes para análisis técnico de corto plazo']
+                return recommendation
+            
+            buy_score = 0
+            reasons = []
+            
+            # 1. Posición en rango (mayor peso para corto plazo)
+            position = indicators.get('position_in_range', 0.5)
+            if position <= 0.15:  # Muy cerca del mínimo
+                buy_score += 40
+                reasons.append(f"Precio muy cerca del mínimo reciente ({position:.1%})")
+            elif position <= 0.35:  # Cerca del mínimo
+                buy_score += 30
+                reasons.append(f"Precio cerca del mínimo reciente ({position:.1%})")
+            elif position >= 0.85:  # Cerca del máximo
+                buy_score -= 20
+                reasons.append(f"Precio cerca del máximo reciente ({position:.1%})")
+            
+            # 2. Tendencia de corto plazo (peso crítico)
+            trend = indicators.get('trend', 'FLAT')
+            trend_slope = indicators.get('trend_slope', 0)
+            
+            if trend == 'UP':
+                if abs(trend_slope) > 50:  # Tendencia fuerte
+                    buy_score += 35
+                    reasons.append("Tendencia alcista fuerte de corto plazo")
+                else:
+                    buy_score += 25
+                    reasons.append("Tendencia alcista moderada")
+            elif trend == 'DOWN':
+                buy_score -= 25
+                reasons.append("Tendencia bajista de corto plazo")
+            
+            # 3. Momentum de corto plazo
+            short_momentum = indicators.get('short_momentum', 0)
+            if short_momentum > 3:  # Momentum positivo fuerte
+                buy_score += 20
+                reasons.append(f"Momentum positivo (+{short_momentum:.1f}%)")
+            elif short_momentum < -3:  # Momentum negativo
+                buy_score -= 15
+                reasons.append(f"Momentum negativo ({short_momentum:.1f}%)")
+            
+            # 4. Volatilidad (controlar riesgo)
+            volatility = indicators.get('recent_volatility', 0)
+            if 2 <= volatility <= 6:  # Volatilidad saludable
+                buy_score += 10
+                reasons.append(f"Volatilidad saludable ({volatility:.1f}%)")
+            elif volatility > 10:  # Muy volátil
+                buy_score -= 10
+                reasons.append(f"Alta volatilidad ({volatility:.1f}%)")
+            
+            # 5. Relación con medias móviles
+            sma_3 = indicators.get('sma_3')
+            sma_5 = indicators.get('sma_5')
+            
+            if sma_3 and sma_5 and current_price > sma_3 > sma_5:
+                buy_score += 15
+                reasons.append("Precio por encima de medias móviles ascendentes")
+            elif sma_3 and current_price > sma_3:
+                buy_score += 10
+                reasons.append("Precio por encima de SMA corta")
+            
+            # Determinar recomendación final (umbrales ajustados para corto plazo)
+            data_quality = indicators.get('data_points', 0)
+            if data_quality >= 10:
+                threshold = 60  # Umbral alto con datos suficientes
+            elif data_quality >= 5:
+                threshold = 50  # Umbral moderado
+            else:
+                threshold = 70  # Umbral alto si pocos datos
+            
+            if buy_score >= threshold:
+                confidence = min(95, 50 + buy_score)
+                recommendation.update({
+                    'recommendation': 'COMPRA',
+                    'confidence': confidence,
+                    'reasons': reasons
+                })
+            else:
+                recommendation['reasons'] = [f'Señales técnicas insuficientes: {buy_score}/{threshold} puntos']
+            
+            recommendation['score_details'] = {
+                'total_score': buy_score,
+                'threshold': threshold,
+                'data_quality': data_quality,
+                'timeframe': 'short_term'
+            }
+            
+            return recommendation
+            
+        except Exception as e:
+            return self._create_error_result(ticker, str(e))
+    
+    def _get_historical_data(self, ticker: str, days: int = 30) -> pd.DataFrame:
+        """Obtiene datos históricos optimizados para corto plazo"""
         try:
             end_date = date.today()
             start_date = end_date - timedelta(days=days)
@@ -276,278 +476,16 @@ class FinancialAnalyzer:
         except Exception as e:
             return None
     
-    def _calculate_market_indicators(self, df: pd.DataFrame, current_price: float) -> Dict:
-        """Calcula indicadores básicos de mercado con criterios estadísticamente válidos"""
-        try:
-            prices = df['precio_cierre'].values
-            
-            indicators = {
-                'current_price': current_price,
-                'data_points': len(prices),
-                'data_quality': self._assess_data_quality(len(prices))
-            }
-            
-            # Mínimo estadísticamente válido para análisis básico
-            if len(prices) < 7:
-                indicators['insufficient_data'] = True
-                return indicators
-            
-            # SMA 5 (requiere mínimo 5 puntos)
-            if len(prices) >= 5:
-                indicators['sma_5'] = np.mean(prices[-5:])
-            
-            # SMA 10 (requiere mínimo 10 puntos)
-            if len(prices) >= 10:
-                indicators['sma_10'] = np.mean(prices[-10:])
-            else:
-                indicators['sma_10'] = indicators.get('sma_5', current_price)
-            
-            # Max/Min range - requiere mínimo 14 puntos para ser confiable
-            if len(prices) >= 14:
-                max_min_period = min(30, len(prices))
-                indicators['max_range'] = np.max(prices[-max_min_period:])
-                indicators['min_range'] = np.min(prices[-max_min_period:])
-                indicators['range_reliability'] = 'high'
-            else:
-                # Para pocos datos, usar todo el período disponible pero marcarlo como menos confiable
-                indicators['max_range'] = np.max(prices)
-                indicators['min_range'] = np.min(prices)
-                indicators['range_reliability'] = 'low'
-            
-            # Posición relativa en el rango
-            if indicators['max_range'] != indicators['min_range']:
-                indicators['position_in_range'] = (current_price - indicators['min_range']) / (indicators['max_range'] - indicators['min_range'])
-            else:
-                indicators['position_in_range'] = 0.5
-            
-            # Tendencia - requiere mínimo 7 puntos para regresión confiable
-            trend_period = min(10, len(prices))
-            trend_slope = np.polyfit(range(trend_period), prices[-trend_period:], 1)[0]
-            indicators['trend'] = 'UP' if trend_slope > 0 else 'DOWN' if trend_slope < 0 else 'FLAT'
-            indicators['trend_slope'] = trend_slope
-            
-            # Volatilidad - requiere mínimo 10 puntos para desviación estándar meaningful
-            if len(prices) >= 10:
-                recent_std = np.std(prices[-10:])
-                avg_price = np.mean(prices[-10:])
-                indicators['volatility'] = (recent_std / avg_price) * 100 if avg_price > 0 else 0
-            
-            return indicators
-            
-        except Exception as e:
-            return {'current_price': current_price, 'data_points': 0, 'insufficient_data': True}
-    
-    def _assess_data_quality(self, data_points: int) -> str:
-        """Evalúa la calidad de los datos basado en cantidad de puntos"""
-        if data_points >= 30:
-            return 'excellent'
-        elif data_points >= 14:
-            return 'good'
-        elif data_points >= 7:
-            return 'adequate'
-        else:
-            return 'insufficient'
-    
-    def _generate_buy_recommendation_rigorous(self, ticker: str, indicators: Dict, historical_data: pd.DataFrame, current_price: float) -> Dict:
-        """Genera recomendación de compra con criterios rigurosos basados en calidad de datos"""
-        try:
-            recommendation = {
-                'ticker': ticker,
-                'current_price': current_price,
-                'recommendation': 'MANTENER',
-                'confidence': 50,
-                'reasons': [],
-                'indicators': indicators,
-                'score_details': {}
-            }
-            
-            # Verificar si hay datos suficientes
-            if indicators.get('insufficient_data'):
-                recommendation['reasons'] = ['Datos históricos insuficientes para análisis riguroso (mínimo 7 días)']
-                return recommendation
-            
-            buy_score = 0
-            reasons = []
-            score_details = {}
-            data_points = indicators.get('data_points', 0)
-            data_quality = indicators.get('data_quality', 'insufficient')
-            
-            # CRITERIO 1: Posición en rango (ajustado por calidad de datos)
-            position = indicators.get('position_in_range', 0.5)
-            range_reliability = indicators.get('range_reliability', 'low')
-            
-            if position <= 0.2:  # Muy cerca del mínimo
-                points = 35 if range_reliability == 'high' else 25
-                reason = f"Precio muy cerca del mínimo ({position:.1%})"
-            elif position <= 0.4:  # Cerca del mínimo
-                points = 25 if range_reliability == 'high' else 20
-                reason = f"Precio cerca del mínimo ({position:.1%})"
-            elif position <= 0.6:  # Posición media-baja
-                points = 15
-                reason = f"Precio en posición favorable ({position:.1%})"
-            elif position <= 0.8:  # Posición media-alta
-                points = 5
-                reason = f"Precio en posición media ({position:.1%})"
-            else:  # Cerca del máximo
-                points = 0
-                reason = f"Precio cerca del máximo ({position:.1%})"
-            
-            if range_reliability == 'low':
-                reason += " (confianza limitada por pocos datos)"
-            
-            buy_score += points
-            if points > 0:
-                reasons.append(reason)
-            
-            score_details['position'] = {
-                'value': position,
-                'points': points,
-                'reason': reason
-            }
-            
-            # CRITERIO 2: Tendencia
-            trend = indicators.get('trend', 'FLAT')
-            trend_slope = indicators.get('trend_slope', 0)
-            
-            if trend == 'UP':
-                if abs(trend_slope) > 100:  # Tendencia fuerte
-                    points = 30
-                    reason = "Tendencia alcista fuerte"
-                else:  # Tendencia moderada
-                    points = 20
-                    reason = "Tendencia alcista moderada"
-            elif trend == 'FLAT':
-                points = 10
-                reason = "Tendencia lateral (estable)"
-            else:  # DOWN
-                if abs(trend_slope) > 100:  # Caída fuerte (oportunidad?)
-                    points = 5
-                    reason = "Tendencia bajista (posible rebote)"
-                else:
-                    points = 0
-                    reason = "Tendencia bajista moderada"
-            
-            buy_score += points
-            if points > 0:
-                reasons.append(reason)
-            
-            score_details['trend'] = {
-                'value': trend,
-                'slope': trend_slope,
-                'points': points,
-                'reason': reason
-            }
-            
-            # CRITERIO 3: Precio vs SMA - MÁS FLEXIBLE
-            sma_5 = indicators.get('sma_5')
-            if sma_5:
-                sma_ratio = current_price / sma_5
-                
-                if sma_ratio >= 1.05:  # 5% por encima
-                    points = 20
-                    reason = f"Precio fuertemente por encima de SMA ({sma_ratio:.2%})"
-                elif sma_ratio >= 1.02:  # 2% por encima
-                    points = 15
-                    reason = f"Precio por encima de SMA ({sma_ratio:.2%})"
-                elif sma_ratio >= 0.98:  # Cerca de SMA
-                    points = 10
-                    reason = f"Precio cerca de SMA ({sma_ratio:.2%})"
-                else:  # Por debajo
-                    points = 5
-                    reason = f"Precio por debajo de SMA ({sma_ratio:.2%}) - posible oportunidad"
-                
-                buy_score += points
-                reasons.append(reason)
-                
-                score_details['sma'] = {
-                    'current_vs_sma': sma_ratio,
-                    'points': points,
-                    'reason': reason
-                }
-            
-            # CRITERIO 4: Volatilidad (solo con datos suficientes)
-            volatility = indicators.get('volatility', 0)
-            if volatility > 0 and data_points >= 10:
-                if 2 <= volatility <= 8:  # Volatilidad saludable
-                    points = 10
-                    reason = f"Volatilidad saludable ({volatility:.1f}%)"
-                    buy_score += points
-                    reasons.append(reason)
-                
-                score_details['volatility'] = {
-                    'value': volatility,
-                    'points': points if 2 <= volatility <= 8 else 0,
-                    'reason': reason if 2 <= volatility <= 8 else f"Volatilidad {volatility:.1f}% fuera del rango óptimo"
-                }
-            
-            # CRITERIO 5: Calidad de datos
-            if data_quality == 'excellent':
-                points = 10
-                reason = f"Análisis con datos excelentes ({data_points} días)"
-            elif data_quality == 'good':
-                points = 5
-                reason = f"Análisis con datos buenos ({data_points} días)"
-            elif data_quality == 'adequate':
-                points = 2
-                reason = f"Análisis con datos adecuados ({data_points} días)"
-            else:
-                points = 0
-                reason = f"Datos limitados ({data_points} días)"
-            
-            if points > 0:
-                buy_score += points
-                reasons.append(reason)
-            
-            score_details['data_quality'] = {
-                'days': data_points,
-                'quality': data_quality,
-                'points': points,
-                'reason': reason
-            }
-            
-            # UMBRALES RIGUROSOS basados en calidad de datos
-            if data_quality == 'excellent':
-                threshold = 45  # Más estricto con datos excelentes
-            elif data_quality == 'good':
-                threshold = 35  # Moderadamente estricto
-            elif data_quality == 'adequate':
-                threshold = 25  # Más permisivo con datos limitados
-            else:
-                threshold = 50  # Muy estricto si datos insuficientes
-            
-            # Determinar recomendación final
-            if buy_score >= threshold:
-                confidence = min(95, 40 + buy_score)
-                recommendation.update({
-                    'recommendation': 'COMPRA',
-                    'confidence': confidence,
-                    'reasons': reasons
-                })
-            else:
-                recommendation['reasons'] = [f'Score insuficiente: {buy_score}/{threshold} puntos (calidad datos: {data_quality})']
-            
-            recommendation['score_details'] = {
-                'total_score': buy_score,
-                'threshold': threshold,
-                'data_quality': data_quality,
-                'breakdown': score_details
-            }
-            
-            return recommendation
-            
-        except Exception as e:
-            return self._create_error_result(ticker, str(e))
-    
     def _create_no_data_result(self, ticker: str) -> Dict:
         """Crea resultado cuando no hay datos suficientes"""
         return {
             'ticker': ticker,
             'recommendation': 'MANTENER',
             'confidence': 0,
-            'reasons': ['Datos históricos insuficientes'],
+            'reasons': ['Datos históricos insuficientes para análisis de corto plazo'],
             'current_price': 0,
             'indicators': {},
-            'score_details': {'total_score': 0, 'threshold': 0, 'breakdown': {}}
+            'score_details': {'total_score': 0, 'threshold': 0, 'timeframe': 'short_term'}
         }
     
     def _create_error_result(self, ticker: str, error_msg: str) -> Dict:
@@ -559,5 +497,5 @@ class FinancialAnalyzer:
             'reasons': [f'Error: {error_msg}'],
             'current_price': 0,
             'indicators': {},
-            'score_details': {'total_score': 0, 'threshold': 0, 'breakdown': {}}
+            'score_details': {'total_score': 0, 'threshold': 0, 'timeframe': 'short_term'}
         }
