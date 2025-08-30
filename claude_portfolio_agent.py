@@ -1,4 +1,4 @@
-# claude_portfolio_agent.py - Versión final integrada con scraper
+# claude_portfolio_agent.py - Versión mejorada sin respuestas hardcodeadas
 import json
 from datetime import date, timedelta
 from typing import Dict, List
@@ -28,7 +28,7 @@ class ClaudePortfolioAgent:
             self.fundamental_scraper = None
     
     def analyze_portfolio_with_expert_agent(self, portfolio_data: Dict, available_cash: float) -> Dict:
-        """Análisis completo usando agente experto con datos reales"""
+        """Análisis completo usando agente experto con datos reales - SIN FALLBACKS HARDCODEADOS"""
         try:
             print("\n🤖 INICIANDO ANÁLISIS CON AGENTE EXPERTO")
             print("-" * 50)
@@ -52,32 +52,221 @@ class ClaudePortfolioAgent:
             print(f"   📊 Complete data keys: {list(complete_data.keys())}")
             print(f"   📊 Positions count: {len(complete_data.get('positions', []))}")
             
-            # 3. Crear prompt mejorado
+            # 3. Verificar que tenemos datos técnicos reales
+            has_real_data = self._verify_real_technical_data(complete_data)
+            if not has_real_data:
+                print("❌ No hay datos técnicos reales suficientes - abortando análisis experto")
+                return self._create_minimal_analysis()
+            
+            # 4. Crear prompt mejorado
             print("🔍 DEBUG: Creando prompt...")
             expert_prompt = self._create_expert_prompt_improved(complete_data)
             print(f"   📊 Prompt length: {len(expert_prompt)} chars")
             print(f"   📊 Prompt preview: {expert_prompt[:200]}...")
             
-            # 4. Consultar agente
+            # 5. Consultar agente - CON VALIDACIÓN ESTRICTA
             print("🔍 DEBUG: Consultando agente experto...")
-            expert_response = self._query_expert_agent(expert_prompt)
+            expert_response = self._query_expert_agent_with_validation(expert_prompt)
+            
+            if not expert_response:
+                print("❌ No se obtuvo respuesta válida del agente experto")
+                return self._create_minimal_analysis()
+            
             print(f"   📊 Response length: {len(expert_response)} chars")
             print(f"   📊 Response preview: {expert_response[:200]}...")
             
-            # 5. Parsear respuesta
+            # 6. Parsear respuesta CON VALIDACIÓN
             print("🔍 DEBUG: Parseando respuesta...")
-            parsed_analysis = self._parse_expert_response(expert_response)
+            parsed_analysis = self._parse_expert_response_strict(expert_response)
+            
+            if not self._validate_analysis_quality(parsed_analysis):
+                print("❌ Análisis del experto no cumple estándares de calidad")
+                return self._create_minimal_analysis()
+            
             print(f"   📊 Parsed type: {type(parsed_analysis)}")
             print(f"   📊 Parsed keys: {list(parsed_analysis.keys()) if isinstance(parsed_analysis, dict) else 'Not dict'}")
             
-            print("✅ Análisis experto completado")
+            print("✅ Análisis experto de alta calidad completado")
             return parsed_analysis
             
         except Exception as e:
             print(f"❌ Error en análisis experto: {str(e)}")
             import traceback
             traceback.print_exc()
-            return self._create_fallback_analysis()
+            return self._create_minimal_analysis()
+    
+    def _verify_real_technical_data(self, complete_data: Dict) -> bool:
+        """Verifica que tenemos datos técnicos reales, no simulados"""
+        positions = complete_data.get('positions', [])
+        
+        if not positions:
+            return False
+        
+        real_data_count = 0
+        
+        for pos in positions:
+            # Verificar datos históricos reales
+            historical = pos.get('historical_data', {})
+            if historical.get('data_points', 0) >= 10:  # Mínimo 10 días de datos
+                real_data_count += 1
+            
+            # Verificar indicadores técnicos calculados
+            tech_indicators = pos.get('technical_indicators', {})
+            if (tech_indicators.get('rsi_14') and 
+                not tech_indicators.get('insufficient_data') and
+                tech_indicators.get('rsi_14') != 50):  # 50 es valor por defecto
+                real_data_count += 1
+        
+        # Al menos 70% de posiciones deben tener datos reales
+        min_required = len(positions) * 0.7
+        has_sufficient_data = real_data_count >= min_required
+        
+        print(f"🔍 Verificación datos reales: {real_data_count}/{len(positions)} posiciones con datos técnicos reales")
+        return has_sufficient_data
+    
+    def _query_expert_agent_with_validation(self, prompt: str) -> str:
+        """Consulta al agente experto CON VALIDACIÓN estricta"""
+        try:
+            print("🔍 DEBUG: Verificando configuración API...")
+            api_key = os.getenv('ANTHROPIC_API_KEY')
+            if not api_key:
+                print("❌ ANTHROPIC_API_KEY no configurada")
+                return ""
+            
+            print(f"   📊 API Key configured: {api_key[:10]}...")
+            
+            print("🔍 DEBUG: Enviando request a Claude...")
+            message = self.client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=4000,
+                temperature=0.3,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            
+            response_content = message.content[0].text
+            print(f"   📊 Claude response length: {len(response_content)} chars")
+            print(f"   📊 Claude response type: {type(response_content)}")
+            
+            # Validar que la respuesta no esté vacía
+            if len(response_content.strip()) < 100:
+                print("❌ Respuesta de Claude demasiado corta")
+                return ""
+            
+            # Validar que contiene JSON
+            if '{' not in response_content or '}' not in response_content:
+                print("❌ Respuesta de Claude no contiene JSON válido")
+                return ""
+            
+            return response_content
+            
+        except Exception as e:
+            print(f"❌ Error consultando agente experto: {str(e)}")
+            return ""
+    
+    def _parse_expert_response_strict(self, response: str) -> Dict:
+        """Parsea la respuesta del agente experto CON VALIDACIÓN ESTRICTA"""
+        try:
+            if '{' in response and '}' in response:
+                json_start = response.find('{')
+                json_end = response.rfind('}') + 1
+                json_str = response[json_start:json_end]
+                
+                parsed = json.loads(json_str)
+                
+                if isinstance(parsed, dict):
+                    return parsed
+            
+            print("❌ No se pudo parsear JSON válido de la respuesta")
+            return {}
+            
+        except json.JSONDecodeError as e:
+            print(f"❌ Error JSON parseando respuesta experta: {str(e)}")
+            return {}
+        except Exception as e:
+            print(f"❌ Error general parseando respuesta experta: {str(e)}")
+            return {}
+    
+    def _validate_analysis_quality(self, analysis: Dict) -> bool:
+        """Valida que el análisis cumple estándares de calidad (no es genérico)"""
+        if not isinstance(analysis, dict) or not analysis:
+            return False
+        
+        # Verificar estructura básica
+        required_keys = ['analisis_tecnico', 'gestion_riesgo']
+        if not all(key in analysis for key in required_keys):
+            print("❌ Análisis no tiene estructura completa")
+            return False
+        
+        # Verificar análisis técnico por activo
+        analisis_tecnico = analysis.get('analisis_tecnico', {})
+        por_activo = analisis_tecnico.get('por_activo', {}) if isinstance(analisis_tecnico, dict) else {}
+        
+        if not por_activo:
+            print("❌ No hay análisis técnico por activo")
+            return False
+        
+        # Verificar que NO sean valores genéricos/hardcodeados
+        real_analysis_indicators = 0
+        
+        for ticker, asset_analysis in por_activo.items():
+            rsi_analysis = asset_analysis.get('rsi_analysis', '')
+            
+            # Verificar que RSI no sea genérico
+            if rsi_analysis and 'no_calculado' not in rsi_analysis:
+                # Buscar valores numéricos específicos en RSI
+                import re
+                rsi_numbers = re.findall(r'\d+\.?\d*', rsi_analysis)
+                if rsi_numbers:
+                    rsi_value = float(rsi_numbers[0])
+                    # Verificar que no sea valor hardcodeado típico (50, 30, 70)
+                    if rsi_value not in [30.0, 50.0, 70.0]:
+                        real_analysis_indicators += 1
+        
+        # Verificar razonamiento específico
+        razonamiento = analysis.get('razonamiento_integral', '')
+        
+        # Frases que indican análisis genérico/hardcodeado
+        generic_phrases = [
+            'posiciones muy recientes (1 día promedio)',
+            'pérdidas actuales son normales',
+            'análisis de respaldo',
+            'datos técnicos no disponibles'
+        ]
+        
+        is_generic = any(phrase in razonamiento.lower() for phrase in generic_phrases)
+        
+        if is_generic:
+            print("❌ Análisis contiene texto genérico/hardcodeado")
+            return False
+        
+        # Verificar que haya suficientes indicadores reales
+        min_real_indicators = max(1, len(por_activo) // 2)  # Al menos 50% de activos con análisis real
+        
+        quality_check = real_analysis_indicators >= min_real_indicators
+        print(f"🔍 Validación calidad: {real_analysis_indicators}/{len(por_activo)} activos con análisis real")
+        
+        return quality_check
+    
+    def _create_minimal_analysis(self) -> Dict:
+        """Crea análisis MÍNIMO sin hardcodeo cuando no hay datos de Claude"""
+        return {
+            "analisis_tecnico": {
+                "por_activo": {},
+                "mercado_general": "Análisis técnico no disponible"
+            },
+            "acciones_inmediatas": [],
+            "acciones_corto_plazo": [],
+            "gestion_riesgo": {
+                "riesgo_cartera": 5,
+                "volatilidad_observada": "No calculada",
+                "recomendaciones_sizing": []
+            },
+            "razonamiento_integral": "El análisis técnico avanzado no está disponible en este momento. Consulta las recomendaciones del sistema de reglas.",
+            "analysis_source": "minimal_fallback",
+            "claude_api_available": False
+        }
     
     def _gather_complete_portfolio_data_improved(self, portfolio_data: Dict, available_cash: float) -> Dict:
         """Recopila datos completos con información real scrapeada"""
@@ -361,29 +550,34 @@ class ClaudePortfolioAgent:
         }
     
     def _create_expert_prompt_improved(self, data: Dict) -> str:
-        """Crea prompt mejorado con datos reales y técnicos"""
+        """Crea prompt mejorado con datos reales y técnicos - CON INSTRUCCIONES ESPECÍFICAS"""
         
-        prompt = f"""Eres un gestor de carteras institucional senior con 25+ años de experiencia gestionando fondos de inversión en mercados emergentes, especializado en análisis técnico avanzado, gestión de riesgo cuantitativo y timing de mercado. 
+        prompt = f"""Eres un asesor financiero experto que debe dar recomendaciones ESPECÍFICAS y ACCIONABLES para una cartera real.
 
-Tu expertise incluye: análisis técnico (RSI, MACD, Bandas de Bollinger, patrones chartistas), análisis fundamental, gestión de riesgo (VaR, drawdown, correlaciones), y estrategias de timing.
+INSTRUCCIONES CRÍTICAS:
+- Debes generar recomendaciones específicas: "Comprar X cantidad a precio Y" o "Vender Z cantidad si precio baja a W"
+- Tu análisis será enviado por email a inversores que NO son expertos en finanzas
+- Usa lenguaje simple y claro, evita jerga técnica
+- Las recomendaciones deben ser ejecutables HOY o en días específicos
+- NUNCA uses texto genérico como "monitorear evolución" - sé específico
 
-CARTERA BAJO ANÁLISIS CON DATOS REALES:
+DATOS REALES DE LA CARTERA:
 
-**MÉTRICAS GENERALES:**
-- Capital Total: ${data['portfolio_summary']['cash_available'] + data['portfolio_summary']['current_value']:,.2f} (Invertido: ${data['portfolio_summary']['current_value']:,.2f}, Efectivo: ${data['portfolio_summary']['cash_available']:,.2f})
-- P&L Neto: ${data['portfolio_summary']['total_pnl']:,.2f}
-- Número de Posiciones: {data['portfolio_summary']['positions_count']}
+**RESUMEN FINANCIERO:**
+- Capital Disponible: ${data['portfolio_summary']['cash_available']:,.2f}
+- Valor Invertido: ${data['portfolio_summary']['current_value']:,.2f}
+- Ganancia/Pérdida: ${data['portfolio_summary']['total_pnl']:,.2f}
+- Número de Inversiones: {data['portfolio_summary']['positions_count']}
 
-**ANÁLISIS DETALLADO CON DATOS HISTÓRICOS REALES DE 30 DÍAS:**"""
+**ANÁLISIS DETALLADO CON DATOS HISTÓRICOS REALES:**"""
         
         for pos in data['positions']:
             days_held = pos['days_held']
-            timeframe = "Muy Corto Plazo" if days_held <= 7 else "Corto Plazo" if days_held <= 30 else "Mediano Plazo"
+            timeframe = "Muy Reciente" if days_held <= 3 else "Reciente" if days_held <= 30 else "Establecida"
             
             # Datos históricos reales
             historical = pos.get('historical_data', {})
-            daily_prices = historical.get('daily_prices', [])
-            data_points = len(daily_prices)
+            data_points = historical.get('data_points', 0)
             
             # Indicadores técnicos calculados
             tech_indicators = pos.get('technical_indicators', {})
@@ -394,16 +588,16 @@ CARTERA BAJO ANÁLISIS CON DATOS REALES:
             prompt += f"""
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{pos['ticker']} - {timeframe} ({days_held} días)
+{pos['ticker']} - Inversión {timeframe} ({days_held} días)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-💼 POSICIÓN: {pos['shares']} nominales a ${pos['avg_cost']:.2f} (Actual: ${pos['current_price']:.2f})
-💰 P&L: ${pos['pnl']:.2f} ({pos['pnl_pct']:+.1f}%) | Peso Cartera: {pos['position_size_pct']:.1%}"""
+💼 POSICIÓN: {pos['shares']} acciones compradas a ${pos['avg_cost']:.2f} (Precio actual: ${pos['current_price']:.2f})
+💰 Ganancia/Pérdida: ${pos['pnl']:.2f} ({pos['pnl_pct']:+.1f}%) | Peso en cartera: {pos['position_size_pct']:.1%}"""
             
-            # DATOS FUNDAMENTALES REALES (sin hardcodeo)
+            # Datos fundamentales reales
             if fundamental.get('scraping_success'):
                 prompt += f"""
-🏭 DATOS FUNDAMENTALES REALES:"""
+🏭 INFORMACIÓN DE LA EMPRESA:"""
                 if fundamental.get('sector'):
                     prompt += f"\n   • Sector: {fundamental['sector']}"
                 if fundamental.get('industry'):
@@ -411,310 +605,93 @@ CARTERA BAJO ANÁLISIS CON DATOS REALES:
                 if fundamental.get('daily_volume'):
                     prompt += f"\n   • Volumen Diario: {fundamental['daily_volume']}"
             
-            # SERIE HISTÓRICA COMPLETA (30 días reales)
-            if data_points > 0:
+            # Serie histórica completa
+            if data_points >= 10:
+                daily_prices = historical.get('daily_prices', [])
                 prompt += f"""
 
-📈 DATOS HISTÓRICOS REALES ({data_points} días disponibles):
-   Serie completa de precios diarios:"""
+📈 HISTORIAL DE PRECIOS REALES ({data_points} días):"""
                 
-                # Incluir toda la serie de precios (no solo muestra)
-                for day in daily_prices:
+                # Últimos 15 días para no saturar el prompt
+                recent_prices = daily_prices[-15:] if len(daily_prices) > 15 else daily_prices
+                for day in recent_prices:
                     prompt += f"\n   {day['fecha']}: ${day['precio']:.2f}"
             
-            # INDICADORES TÉCNICOS CALCULADOS
+            # Indicadores técnicos calculados
             if not tech_indicators.get('insufficient_data'):
                 prompt += f"""
 
 🔢 INDICADORES TÉCNICOS CALCULADOS:"""
                 
-                # RSI
                 if 'rsi_14' in tech_indicators:
                     rsi = tech_indicators['rsi_14']
-                    rsi_status = 'SOBRECOMPRADO' if rsi > 70 else 'SOBREVENDIDO' if rsi < 30 else 'NEUTRAL'
-                    prompt += f"\n   • RSI (14): {rsi:.1f} - {rsi_status}"
+                    if rsi > 70:
+                        rsi_status = 'SOBRECOMPRADO (muy caro)'
+                    elif rsi < 30:
+                        rsi_status = 'SOBREVENDIDO (posible oportunidad)'
+                    else:
+                        rsi_status = 'NORMAL'
+                    prompt += f"\n   • RSI: {rsi:.1f} - {rsi_status}"
                 
-                # MACD
                 if 'macd' in tech_indicators:
                     macd = tech_indicators['macd']
-                    prompt += f"\n   • MACD: Line={macd.get('macd', 0):.2f}, Signal={macd.get('signal', 0):.2f}, Histogram={macd.get('histogram', 0):.2f}"
-                    prompt += f"\n   • MACD Trend: {macd.get('trend', 'neutral').upper()}"
+                    trend_text = 'ALCISTA' if macd.get('trend') == 'bullish' else 'BAJISTA' if macd.get('trend') == 'bearish' else 'NEUTRAL'
+                    prompt += f"\n   • MACD: {trend_text}"
                 
-                # Medias Móviles
-                current_price = pos['current_price']
-                if 'sma_20' in tech_indicators:
-                    sma_20 = tech_indicators['sma_20']
-                    price_vs_sma = ((current_price - sma_20) / sma_20) * 100
-                    prompt += f"\n   • SMA 20: ${sma_20:.2f} (Precio {price_vs_sma:+.1f}% vs SMA)"
-                
-                if 'sma_10' in tech_indicators:
-                    sma_10 = tech_indicators['sma_10']
-                    prompt += f"\n   • SMA 10: ${sma_10:.2f}"
-                
-                if 'sma_5' in tech_indicators:
-                    sma_5 = tech_indicators['sma_5']
-                    prompt += f"\n   • SMA 5: ${sma_5:.2f}"
-                
-                # Bandas de Bollinger
-                if 'bollinger' in tech_indicators:
-                    bb = tech_indicators['bollinger']
-                    prompt += f"\n   • Bollinger Bands: Superior ${bb.get('upper', 0):.2f}, Media ${bb.get('middle', 0):.2f}, Inferior ${bb.get('lower', 0):.2f}"
-                    prompt += f"\n   • Posición en Bandas: {bb.get('position', 'neutral').upper()}"
-                
-                # Volatilidad
-                if 'volatility_10d' in tech_indicators:
-                    vol_10d = tech_indicators['volatility_10d']
-                    vol_annual = tech_indicators.get('volatility_annualized', 0)
-                    vol_category = 'ALTA' if vol_10d > 5 else 'MODERADA' if vol_10d > 2 else 'BAJA'
-                    prompt += f"\n   • Volatilidad 10d: {vol_10d:.1f}% - {vol_category} (Anualizada: {vol_annual:.1f}%)"
-                
-                # Momentum
-                if 'momentum_5d' in tech_indicators:
-                    mom_5d = tech_indicators['momentum_5d']
-                    mom_10d = tech_indicators.get('momentum_10d', 0)
-                    prompt += f"\n   • Momentum: 5d={mom_5d:+.1f}%, 10d={mom_10d:+.1f}%"
-            else:
-                prompt += f"\n🔢 INDICADORES TÉCNICOS: {tech_indicators.get('reason', 'Datos insuficientes')}"
+                if 'volatility_annualized' in tech_indicators:
+                    vol_annual = tech_indicators['volatility_annualized']
+                    vol_category = 'MUY ALTA' if vol_annual > 60 else 'ALTA' if vol_annual > 40 else 'MODERADA' if vol_annual > 20 else 'BAJA'
+                    prompt += f"\n   • Volatilidad: {vol_annual:.1f}% anual - {vol_category}"
         
         prompt += f"""
 
-**ANÁLISIS REQUERIDO CON DATOS REALES:**
+**TU TRABAJO:**
 
-Realiza un análisis profesional integral usando los datos históricos reales de 30 días y los indicadores técnicos calculados:
+Analiza cada inversión y genera recomendaciones ESPECÍFICAS Y EJECUTABLES:
 
-**1. ANÁLISIS TÉCNICO BASADO EN DATOS REALES:**
-- Evalúa cada posición usando los indicadores RSI, MACD, Bollinger calculados con datos reales
-- Identifica patrones en la serie de precios real de 30 días proporcionada
-- Determina niveles de soporte/resistencia basados en los precios históricos reales
-- Analiza divergencias entre precio y indicadores técnicos
-- Usa RSI para identificar sobrecompra/sobreventa
-- Usa MACD para detectar cambios de momentum
-- Usa Bollinger Bands para identificar presión compradora/vendedora
-
-**2. GESTIÓN DE RIESGO CON VOLATILIDAD REAL:**
-- Calcula riesgo basado en la volatilidad real calculada de cada activo
-- Evalúa sizing óptimo considerando volatilidad histórica observada
-- Analiza correlaciones potenciales entre activos basándote en sus series de precios
-
-**3. TIMING INTELIGENTE:**
-- Usa los valores exactos de RSI para timing de entrada/salida
-- Analiza las señales MACD reales para cambios de momentum
-- Evalúa la posición actual vs Bandas de Bollinger calculadas
-- Recomienda niveles específicos basados en soporte/resistencia de datos reales
-
-**FORMATO DE RESPUESTA:**
+**FORMATO DE RESPUESTA REQUERIDO:**
 ```json
 {{
-  "analisis_tecnico": {{
-    "por_activo": {{
-      "TICKER": {{
-        "soporte": precio_basado_en_datos_reales,
-        "resistencia": precio_basado_en_datos_reales, 
-        "momentum": "alcista/bajista/neutral",
-        "rsi_analysis": "sobrecomprado/sobrevendido/neutral (valor_exacto)",
-        "macd_signal": "bullish/bearish/neutral",
-        "bollinger_position": "above_upper/below_lower/middle",
-        "volatility_assessment": "alta/moderada/baja (valor_calculado)",
-        "recomendacion": "basada en indicadores técnicos reales"
-      }}
-    }},
-    "mercado_general": "evaluación basada en análisis técnico de datos reales"
-  }},
   "acciones_inmediatas": [
     {{
-      "ticker": "X",
-      "accion": "comprar/vender/mantener", 
-      "cantidad": numero,
+      "ticker": "TICKER_EXACTO",
+      "accion": "comprar/vender/mantener",
+      "cantidad": numero_exacto_de_acciones,
       "precio_objetivo": precio_especifico,
-      "razon": "basado en RSI_valor/MACD_señal/Bollinger_posicion especificos",
-      "stop_loss": precio_tecnico,
-      "take_profit": precio_tecnico,
-      "urgencia": "alta/media/baja"
+      "razon": "Explicación simple: RSI en X indica Y, precio bajó/subió por Z",
+      "urgencia": "alta/media/baja",
+      "inversion_total": cantidad * precio (solo para compras),
+      "stop_loss": precio_de_proteccion,
+      "take_profit": precio_de_venta_ganadora
     }}
   ],
   "acciones_corto_plazo": [
     {{
-      "ticker": "X",
+      "ticker": "TICKER",
       "accion": "accion_especifica",
-      "timeframe": "dias_especificos", 
-      "condiciones": "cuando RSI llegue a X / MACD cruce / precio rompa resistencia Y",
-      "trigger_price": precio_especifico
+      "timeframe": "en X días específicos",
+      "condiciones": "Cuando el precio llegue a $X o RSI llegue a Y",
+      "trigger_price": precio_especifico_numerico,
+      "explicacion_simple": "Por qué y cuándo hacerlo en palabras simples"
     }}
   ],
   "gestion_riesgo": {{
-    "riesgo_cartera": "1-10",
-    "volatilidad_observada": "basada en cálculos reales de cada activo",
-    "recomendaciones_sizing": ["basadas en volatilidad real calculada"],
-    "stop_loss_sugeridos": {{"TICKER": precio_especifico}}
+    "riesgo_cartera": numero_1_a_10,
+    "stop_loss_sugeridos": {{
+      "TICKER": precio_especifico_de_proteccion
+    }},
+    "recomendaciones_sizing": ["frases específicas sobre cuánto invertir"]
   }},
-  "razonamiento_integral": "análisis completo basado en series reales de 30 días, indicadores técnicos calculados (RSI, MACD, Bollinger) y datos fundamentales scrapeados en tiempo real"
+  "analisis_tecnico": {{
+    "por_activo": {{
+      "TICKER": {{
+        "momentum": "alcista/bajista/neutral",
+        "rsi_analysis": "sobrecomprado/sobrevendido/normal (valor_exacto)",
+        "macd_signal": "bullish/bearish/neutral",
+        "volatility_assessment": "alta/moderada/baja (valor_calculado)",
+        "recomendacion": "Qué hacer basado en los indicadores reales"
+      }}
+    }}
+  }},
+  "razonamiento_integral": "Análisis completo en 2-3 oraciones explicando la situación actual y por qué recomiendas estas acciones específicas"
 }}
-```
-
-**CRÍTICO:** 
-- Usa EXCLUSIVAMENTE los datos reales proporcionados (series de 30 días, indicadores calculados)
-- Referencias específicas a los valores exactos de RSI, MACD, Bollinger mostrados
-- Niveles de precio específicos basados en soporte/resistencia de los datos reales
-- NO uses estimaciones genéricas - usa los datos exactos calculados"""
-
-        return prompt
-    
-    def _query_expert_agent(self, prompt: str) -> str:
-        """Consulta al agente experto de Claude"""
-        try:
-            print("🔍 DEBUG: Verificando configuración API...")
-            api_key = os.getenv('ANTHROPIC_API_KEY')
-            if not api_key:
-                print("❌ ANTHROPIC_API_KEY no configurada")
-                return self._create_mock_expert_response_improved()
-            
-            print(f"   📊 API Key configured: {api_key[:10]}...")
-            
-            print("🔍 DEBUG: Enviando request a Claude...")
-            message = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=4000,
-                temperature=0.3,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            
-            response_content = message.content[0].text
-            print(f"   📊 Claude response length: {len(response_content)} chars")
-            print(f"   📊 Claude response type: {type(response_content)}")
-            
-            return response_content
-            
-        except Exception as e:
-            print(f"❌ Error consultando agente experto: {str(e)}")
-            return self._create_mock_expert_response_improved()
-    
-    def _create_mock_expert_response_improved(self) -> str:
-        """Crea respuesta simulada con formato mejorado"""
-        return """{
-  "analisis_tecnico": {
-    "por_activo": {
-      "ALUA": {
-        "soporte": 687,
-        "resistencia": 759,
-        "momentum": "neutral",
-        "rsi_analysis": "neutral (52.3)",
-        "macd_signal": "neutral", 
-        "bollinger_position": "middle",
-        "volatility_assessment": "moderada (4.2%)",
-        "recomendacion": "Posición neutral según indicadores técnicos. RSI en zona neutral, MACD sin señal clara."
-      },
-      "COME": {
-        "soporte": 40,
-        "resistencia": 44,
-        "momentum": "bajista",
-        "rsi_analysis": "sobrevendido (28.7)",
-        "macd_signal": "bearish",
-        "bollinger_position": "below_lower",
-        "volatility_assessment": "alta (7.1%)",
-        "recomendacion": "Señales técnicas bajistas. RSI sobrevendido sugiere posible rebote, pero MACD confirma debilidad."
-      },
-      "EDN": {
-        "soporte": 1382,
-        "resistencia": 1528,
-        "momentum": "neutral",
-        "rsi_analysis": "neutral (48.9)",
-        "macd_signal": "neutral",
-        "bollinger_position": "above_middle",
-        "volatility_assessment": "baja (2.8%)",
-        "recomendacion": "Consolidación técnica. Indicadores neutrales con baja volatilidad."
-      },
-      "METR": {
-        "soporte": 1520,
-        "resistencia": 1680,
-        "momentum": "bajista",
-        "rsi_analysis": "neutral (45.2)",
-        "macd_signal": "bearish",
-        "bollinger_position": "below_middle",
-        "volatility_assessment": "moderada (3.9%)",
-        "recomendacion": "Debilidad técnica moderada. MACD bajista pero RSI no sobrevendido aún."
-      },
-      "TECO2": {
-        "soporte": 2313,
-        "resistencia": 2557,
-        "momentum": "alcista",
-        "rsi_analysis": "neutral (58.4)",
-        "macd_signal": "bullish",
-        "bollinger_position": "above_middle",
-        "volatility_assessment": "moderada (4.6%)",
-        "recomendacion": "Momentum alcista confirmado por MACD. RSI en zona saludable, sin sobrecompra."
-      }
-    },
-    "mercado_general": "Análisis basado en datos históricos reales de 30 días e indicadores técnicos calculados para cada activo."
-  },
-  "acciones_inmediatas": [],
-  "acciones_corto_plazo": [
-    {
-      "ticker": "COME",
-      "accion": "evaluar_stop_loss",
-      "timeframe": "2-3 días",
-      "condiciones": "Si RSI baja de 25 o precio rompe soporte $40 basado en datos históricos",
-      "trigger_price": 40.0
-    },
-    {
-      "ticker": "TECO2", 
-      "accion": "mantener_con_take_profit",
-      "timeframe": "3-5 días",
-      "condiciones": "Tomar ganancias parciales si RSI supera 65 o precio alcanza resistencia $2557",
-      "trigger_price": 2557.0
-    }
-  ],
-  "gestion_riesgo": {
-    "riesgo_cartera": "6",
-    "volatilidad_observada": "Promedio ponderado 4.3% basado en cálculos reales de cada activo",
-    "recomendaciones_sizing": [
-      "COME: reducir por alta volatilidad observada (7.1%)",
-      "EDN: posición adecuada para su baja volatilidad (2.8%)"
-    ],
-    "stop_loss_sugeridos": {
-      "ALUA": 687,
-      "COME": 40,
-      "EDN": 1382,
-      "METR": 1520,
-      "TECO2": 2313
-    }
-  },
-  "razonamiento_integral": "Análisis basado en datos históricos reales de 30 días por activo e indicadores técnicos calculados (RSI, MACD, Bollinger). COME muestra signos técnicos de sobreventa que podrían generar rebote. TECO2 presenta el mejor setup técnico con momentum alcista confirmado. Resto de posiciones en consolidación con señales mixtas."
-}"""
-    
-    def _parse_expert_response(self, response: str) -> Dict:
-        """Parsea la respuesta del agente experto"""
-        try:
-            if '{' in response and '}' in response:
-                json_start = response.find('{')
-                json_end = response.rfind('}') + 1
-                json_str = response[json_start:json_end]
-                
-                parsed = json.loads(json_str)
-                
-                if isinstance(parsed, dict):
-                    return parsed
-            
-            return self._create_fallback_analysis()
-            
-        except Exception as e:
-            print(f"⚠️ Error parseando respuesta experta: {str(e)}")
-            return self._create_fallback_analysis()
-    
-    def _create_fallback_analysis(self) -> Dict:
-        """Crea análisis de respaldo mejorado"""
-        return {
-            "analisis_tecnico": {
-                "por_activo": {},
-                "mercado_general": "Análisis de respaldo - datos técnicos no disponibles"
-            },
-            "acciones_inmediatas": [],
-            "acciones_corto_plazo": [],
-            "gestion_riesgo": {
-                "riesgo_cartera": "5",
-                "volatilidad_observada": "No calculada - análisis de respaldo",
-                "recomendaciones_sizing": ["Consultar con asesor financiero"]
-            },
-            "razonamiento_integral": "Análisis de respaldo - sistema técnico mejorado no disponible"
-        }

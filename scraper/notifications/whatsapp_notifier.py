@@ -1,4 +1,4 @@
-# notifications/whatsapp_notifier.py - Notificaciones por WhatsApp
+# notifications/whatsapp_notifier.py - Notificaciones mejoradas por WhatsApp
 import os
 from datetime import datetime
 from typing import List, Dict
@@ -35,6 +35,10 @@ class WhatsAppNotifier:
             return False
         
         try:
+            # Dividir mensaje si es muy largo (WhatsApp tiene límite de ~1600 caracteres)
+            if len(message) > 1500:
+                return self._send_long_message_in_parts(message)
+            
             # Datos para la API de Twilio
             data = {
                 'From': self.twilio_whatsapp_number,
@@ -61,110 +65,324 @@ class WhatsAppNotifier:
             print(f"❌ Error enviando mensaje WhatsApp: {str(e)}")
             return False
     
-    def send_portfolio_recommendations(self, portfolio_data: Dict, sell_recs: List[Dict], buy_opps: List[Dict]) -> bool:
-        """Envía recomendaciones de cartera por WhatsApp"""
+    def _send_long_message_in_parts(self, message: str) -> bool:
+        """Divide mensajes largos en partes"""
         try:
-            # Crear mensaje formateado
-            message = self._format_recommendations_message(portfolio_data, sell_recs, buy_opps)
+            # Dividir por secciones naturales
+            parts = []
+            current_part = ""
             
-            # Enviar mensaje
+            lines = message.split('\n')
+            
+            for line in lines:
+                if len(current_part + line + '\n') > 1400:  # Margen de seguridad
+                    if current_part:
+                        parts.append(current_part.strip())
+                        current_part = ""
+                
+                current_part += line + '\n'
+            
+            if current_part:
+                parts.append(current_part.strip())
+            
+            # Enviar cada parte
+            success_count = 0
+            for i, part in enumerate(parts, 1):
+                header = f"*PARTE {i}/{len(parts)}*\n\n" if len(parts) > 1 else ""
+                full_part = header + part
+                
+                if self._send_single_message(full_part):
+                    success_count += 1
+                    if i < len(parts):  # Pausa entre mensajes
+                        import time
+                        time.sleep(2)
+            
+            return success_count == len(parts)
+            
+        except Exception as e:
+            print(f"❌ Error enviando mensaje largo: {str(e)}")
+            return False
+    
+    def _send_single_message(self, message: str) -> bool:
+        """Envía un mensaje individual"""
+        try:
+            data = {
+                'From': self.twilio_whatsapp_number,
+                'To': self.target_number,
+                'Body': message
+            }
+            
+            response = requests.post(
+                self.twilio_url,
+                data=data,
+                auth=(self.account_sid, self.auth_token)
+            )
+            
+            return response.status_code == 201
+            
+        except Exception as e:
+            return False
+    
+    def send_portfolio_analysis_message(self, rules_analysis: Dict, expert_analysis: Dict, combined: Dict) -> bool:
+        """Envía análisis completo con recomendaciones específicas por WhatsApp"""
+        try:
+            # Verificar si tenemos análisis real de Claude
+            has_real_analysis = self._has_real_claude_analysis(expert_analysis)
+            
+            if not has_real_analysis:
+                print("⚠️ Enviando solo recomendaciones básicas por WhatsApp")
+                message = self._format_basic_whatsapp_message(rules_analysis)
+            else:
+                message = self._format_actionable_whatsapp_message(rules_analysis, expert_analysis)
+            
             return self.send_message(message)
             
         except Exception as e:
-            print(f"❌ Error preparando mensaje de recomendaciones: {str(e)}")
+            print(f"❌ Error preparando mensaje de análisis: {str(e)}")
             return False
     
-    def _format_recommendations_message(self, portfolio_data: Dict, sell_recs: List[Dict], buy_opps: List[Dict]) -> str:
-        """Formatea el mensaje de recomendaciones para WhatsApp"""
-        timestamp = datetime.now().strftime("%d/%m/%Y %H:%M")
+    def _has_real_claude_analysis(self, expert_analysis: Dict) -> bool:
+        """Verifica si tenemos análisis real de Claude"""
+        razonamiento = expert_analysis.get('razonamiento_integral', '')
         
-        message = f"📊 *REPORTE BALANZ* - {timestamp}\n"
-        message += "="*30 + "\n\n"
+        # Verificar que no sea análisis genérico
+        generic_indicators = [
+            'análisis de respaldo',
+            'técnico mejorado no disponible',
+            'posiciones muy recientes (1 día promedio)',
+            'pérdidas actuales son normales'
+        ]
         
-        # Resumen de cartera
-        if portfolio_data:
-            dinero = portfolio_data.get('dinero_disponible', 0)
-            valor_total = portfolio_data.get('valor_total_cartera', 0)
-            ganancia = portfolio_data.get('ganancia_perdida_total', 0)
-            total_invertido = portfolio_data.get('total_invertido', 0)
-            
-            rendimiento = (ganancia / total_invertido * 100) if total_invertido > 0 else 0
-            
-            message += f"💼 *RESUMEN CARTERA*\n"
-            message += f"💰 Disponible: ${dinero:,.0f}\n"
-            message += f"📈 Valor total: ${valor_total:,.0f}\n"
-            message += f"📊 Rendimiento: {rendimiento:+.1f}%\n\n"
+        is_generic = any(indicator in razonamiento.lower() for indicator in generic_indicators)
         
-        # Recomendaciones de venta
-        if sell_recs:
-            message += f"🔴 *RECOMENDACIONES DE VENTA* ({len(sell_recs)})\n"
-            message += "-"*25 + "\n"
+        # Verificar análisis técnico real
+        analisis_tecnico = expert_analysis.get('analisis_tecnico', {})
+        por_activo = analisis_tecnico.get('por_activo', {}) if isinstance(analisis_tecnico, dict) else {}
+        
+        has_real_rsi = False
+        if por_activo:
+            for ticker, analysis in por_activo.items():
+                rsi = analysis.get('rsi_analysis', '')
+                if rsi and 'no_calculado' not in rsi and '(' in rsi:  # Buscar valores específicos
+                    has_real_rsi = True
+                    break
+        
+        return not is_generic and has_real_rsi and len(razonamiento) > 100
+    
+    def _format_actionable_whatsapp_message(self, rules_analysis: Dict, expert_analysis: Dict) -> str:
+        """Formatea mensaje ACCIONABLE con recomendaciones específicas"""
+        timestamp = datetime.now().strftime("%d/%m %H:%M")
+        metrics = rules_analysis.get('portfolio_metrics', {})
+        
+        message = f"*🎯 QUÉ HACER CON TUS INVERSIONES*\n"
+        message += f"📅 {timestamp}\n"
+        message += "=" * 30 + "\n\n"
+        
+        # Situación actual
+        total_value = metrics.get('total_value', 0)
+        total_pnl = metrics.get('total_pnl', 0)
+        total_pnl_pct = metrics.get('total_pnl_pct', 0)
+        cash_available = total_value * metrics.get('cash_allocation', 0)
+        
+        message += f"*💼 TU SITUACIÓN*\n"
+        message += f"💰 Total: ${total_value:,.0f}\n"
+        pnl_emoji = "📈" if total_pnl >= 0 else "📉"
+        message += f"{pnl_emoji} Resultado: ${total_pnl:,.0f} ({total_pnl_pct:+.1f}%)\n"
+        message += f"💵 Disponible: ${cash_available:,.0f}\n\n"
+        
+        # ACCIONES INMEDIATAS - ESPECÍFICAS
+        immediate_actions = expert_analysis.get('acciones_inmediatas', [])
+        if immediate_actions:
+            message += f"*🚨 HACER HOY*\n"
+            message += "-" * 15 + "\n"
             
-            for rec in sell_recs[:3]:  # Top 3
-                ticker = rec.get('ticker', 'N/A')
-                valor = rec.get('current_value', 0)
-                ganancia_pct = rec.get('gain_loss_pct', 0)
-                razon = rec.get('primary_reason', 'No especificada')
-                confianza = rec.get('confidence', 0)
+            for i, action in enumerate(immediate_actions, 1):
+                ticker = action.get('ticker', 'N/A')
+                accion = action.get('accion', '')
+                cantidad = action.get('cantidad', 0)
+                precio = action.get('precio_objetivo', 0)
+                razon = action.get('razon', '')
+                inversion_total = action.get('inversion_total', 0)
                 
-                emoji = "🟢" if ganancia_pct > 0 else "🔴"
-                message += f"{emoji} *{ticker}* - {confianza}% confianza\n"
-                message += f"   💰 Valor: ${valor:,.0f}\n"
-                message += f"   📊 G/P: {ganancia_pct:+.1f}%\n"
-                message += f"   💡 Razón: {razon}\n\n"
+                if 'comprar' in accion.lower():
+                    message += f"*{i}. COMPRAR {ticker}*\n"
+                    message += f"📊 Cantidad: {cantidad} acciones\n"
+                    message += f"💰 Precio máx: ${precio:.0f}\n"
+                    message += f"💵 Invertir: ${inversion_total:,.0f}\n"
+                    message += f"❓ Por qué: {razon}\n\n"
+                    
+                elif 'vender' in accion.lower():
+                    message += f"*{i}. VENDER {ticker}*\n"
+                    message += f"📊 Cantidad: {cantidad} acciones\n"
+                    message += f"💰 Precio mín: ${precio:.0f}\n"
+                    message += f"❓ Por qué: {razon}\n\n"
         else:
-            message += "🟢 *No hay recomendaciones de venta*\n\n"
+            message += f"*✅ No hay acciones urgentes hoy*\n\n"
         
-        # Oportunidades de compra
-        if buy_opps:
-            message += f"🟢 *OPORTUNIDADES DE COMPRA* ({len(buy_opps)})\n"
-            message += "-"*25 + "\n"
+        # ACCIONES PARA PRÓXIMOS DÍAS
+        short_term_actions = expert_analysis.get('acciones_corto_plazo', [])
+        if short_term_actions:
+            message += f"*📅 PRÓXIMOS DÍAS*\n"
+            message += "-" * 15 + "\n"
             
-            for opp in buy_opps[:3]:  # Top 3
-                ticker = opp.get('ticker', 'N/A')
-                precio = opp.get('current_price', 0)
-                inversion = opp.get('suggested_investment', 0)
-                cantidad = opp.get('suggested_quantity', 0)
-                confianza = opp.get('confidence', 0)
-                retorno = opp.get('expected_return', 0)
+            for i, action in enumerate(short_term_actions, 1):
+                ticker = action.get('ticker', 'N/A')
+                accion = action.get('accion', '').replace('_', ' ')
+                timeframe = action.get('timeframe', '')
+                condiciones = action.get('condiciones', '')
+                explicacion = action.get('explicacion_simple', condiciones)
                 
-                message += f"📈 *{ticker}* - {confianza}% confianza\n"
-                message += f"   💰 Precio: ${precio:,.0f}\n"
-                message += f"   🛒 Invertir: ${inversion:,.0f}\n"
-                message += f"   📊 Cantidad: {cantidad} nominales\n"
-                message += f"   🎯 Retorno esp.: +{retorno:.1f}%\n\n"
-        else:
-            message += "⚠️ *No hay oportunidades de compra*\n\n"
+                message += f"*{i}. {ticker}* - {accion}\n"
+                message += f"⏰ Cuándo: {timeframe}\n"
+                message += f"📋 Qué vigilar: {explicacion}\n\n"
         
-        # Mensaje final
-        message += "⚠️ *IMPORTANTE*\n"
-        message += "• Sugerencias basadas en análisis técnico\n"
-        message += "• Considerar factores fundamentales\n"
-        message += "• No arriesgar >5-10% por posición\n\n"
+        # NIVELES DE PROTECCIÓN
+        stop_losses = expert_analysis.get('gestion_riesgo', {}).get('stop_loss_sugeridos', {})
+        if stop_losses:
+            message += f"*🛡️ PROTECCIÓN AUTOMÁTICA*\n"
+            message += "-" * 20 + "\n"
+            message += f"Vende automáticamente si llegan a:\n"
+            
+            for ticker, stop_price in stop_losses.items():
+                try:
+                    precio_stop = float(stop_price)
+                    message += f"• *{ticker}*: ${precio_stop:.0f}\n"
+                except:
+                    message += f"• *{ticker}*: {stop_price}\n"
+            
+            message += "\n"
         
-        message += "🤖 _Generado automáticamente por Balanz Scraper_"
+        # ANÁLISIS TÉCNICO SIMPLIFICADO
+        analisis_tecnico = expert_analysis.get('analisis_tecnico', {})
+        por_activo = analisis_tecnico.get('por_activo', {}) if isinstance(analisis_tecnico, dict) else {}
+        
+        if por_activo and len(por_activo) <= 5:  # Solo si no son muchas posiciones
+            message += f"*📈 ESTADO DE TUS ACCIONES*\n"
+            message += "-" * 20 + "\n"
+            
+            for ticker, analysis in por_activo.items():
+                momentum = analysis.get('momentum', 'neutral')
+                rsi_analysis = analysis.get('rsi_analysis', '')
+                
+                # Emoji según momentum
+                emoji = "📈" if momentum == 'alcista' else "📉" if momentum == 'bajista' else "➡️"
+                
+                # Simplificar RSI para WhatsApp
+                if 'sobrecomprado' in rsi_analysis:
+                    estado = "Muy caro"
+                elif 'sobrevendido' in rsi_analysis:
+                    estado = "Oportunidad?"
+                else:
+                    estado = "Normal"
+                
+                message += f"{emoji} *{ticker}*: {estado}\n"
+            
+            message += "\n"
+        
+        # CONCLUSIÓN DEL EXPERTO (SOLO SI ES REAL)
+        razonamiento = expert_analysis.get('razonamiento_integral', '')
+        if razonamiento and self._has_real_claude_analysis(expert_analysis):
+            # Tomar solo la parte más importante
+            conclusion = razonamiento[:150] + "..." if len(razonamiento) > 150 else razonamiento
+            message += f"*🧠 CONCLUSIÓN*\n"
+            message += f"{conclusion}\n\n"
+        
+        # ADVERTENCIAS
+        message += f"*⚠️ IMPORTANTE*\n"
+        message += f"• Son sugerencias, no consejos financieros\n"
+        message += f"• Verifica precios antes de operar\n"
+        message += f"• No arriesgues más de lo que puedes perder\n\n"
+        
+        message += f"🤖 _Sistema automático de análisis_"
         
         return message
     
-    def send_simple_alert(self, title: str, message: str) -> bool:
-        """Envía una alerta simple por WhatsApp"""
+    def _format_basic_whatsapp_message(self, rules_analysis: Dict) -> str:
+        """Mensaje básico cuando no hay análisis de Claude"""
+        timestamp = datetime.now().strftime("%d/%m %H:%M")
+        metrics = rules_analysis.get('portfolio_metrics', {})
+        
+        message = f"*📊 RECOMENDACIONES BÁSICAS*\n"
+        message += f"📅 {timestamp}\n"
+        message += "=" * 25 + "\n\n"
+        
+        # Situación actual
+        total_value = metrics.get('total_value', 0)
+        total_pnl = metrics.get('total_pnl', 0)
+        total_pnl_pct = metrics.get('total_pnl_pct', 0)
+        
+        message += f"*💼 TU SITUACIÓN*\n"
+        message += f"💰 Total: ${total_value:,.0f}\n"
+        pnl_emoji = "📈" if total_pnl >= 0 else "📉"
+        message += f"{pnl_emoji} Resultado: ${total_pnl:,.0f} ({total_pnl_pct:+.1f}%)\n\n"
+        
+        # Solo recomendaciones del sistema de reglas
+        rules_recs = rules_analysis.get('recommendations', [])
+        if rules_recs:
+            message += f"*🎯 RECOMENDACIONES AUTOMÁTICAS*\n"
+            message += "-" * 25 + "\n"
+            
+            for i, rec in enumerate(rules_recs, 1):
+                ticker = rec.ticker
+                action_type = rec.action.value
+                shares = rec.suggested_shares
+                price = rec.target_price
+                
+                if 'stop_loss' in action_type:
+                    message += f"*{i}. PROTEGER:* Vender {ticker}\n"
+                    message += f"📊 Todas las {shares} acciones\n"
+                    message += f"💰 Si baja a ${price:.0f}\n"
+                    message += f"❓ Para evitar más pérdidas\n\n"
+                    
+                elif 'rebalanceo' in action_type:
+                    message += f"*{i}. BALANCEAR:* Reducir {ticker}\n"
+                    message += f"📊 Vender {shares} acciones\n"
+                    message += f"💰 Precio actual ${price:.0f}\n"
+                    message += f"❓ Tienes demasiado en esta acción\n\n"
+                    
+                elif 'toma_ganancias' in action_type:
+                    message += f"*{i}. GANAR:* Vender {ticker}\n"
+                    message += f"📊 Vender {shares} acciones\n"
+                    message += f"💰 Si sube a ${price:.0f}\n"
+                    message += f"❓ Para asegurar ganancias\n\n"
+        else:
+            message += f"*✅ Tu cartera está estable*\n"
+            message += f"No hay recomendaciones urgentes\n\n"
+        
+        message += f"*⚠️ NOTA*\n"
+        message += f"El análisis avanzado no está disponible.\n"
+        message += f"Estas son recomendaciones básicas.\n\n"
+        
+        message += f"🤖 _Sistema automático_"
+        
+        return message
+    
+    def send_immediate_alert(self, ticker: str, action: str, price: float, reason: str) -> bool:
+        """Envía alerta inmediata específica"""
         timestamp = datetime.now().strftime("%d/%m %H:%M")
         
-        formatted_message = f"🚨 *{title}*\n"
-        formatted_message += f"⏰ {timestamp}\n\n"
-        formatted_message += message
+        message = f"🚨 *ALERTA INMEDIATA*\n"
+        message += f"⏰ {timestamp}\n\n"
         
-        return self.send_message(formatted_message)
+        message += f"*{ticker}*\n"
+        message += f"🎯 Acción: {action}\n"
+        message += f"💰 Precio: ${price:.0f}\n"
+        message += f"❓ Motivo: {reason}\n\n"
+        
+        message += f"⚠️ *Verificar precio antes de operar*"
+        
+        return self.send_message(message)
     
     def test_connection(self) -> bool:
         """Prueba la conexión enviando un mensaje de test"""
         if not self.is_configured:
             return False
         
-        test_message = f"🧪 *TEST BALANZ SCRAPER*\n"
+        test_message = f"🧪 *TEST SISTEMA*\n"
         test_message += f"⏰ {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
-        test_message += f"✅ WhatsApp configurado correctamente\n"
-        test_message += f"📱 Recibirás notificaciones aquí"
+        test_message += f"✅ WhatsApp funcionando\n"
+        test_message += f"📱 Recibirás recomendaciones aquí\n\n"
+        test_message += f"Responde con ✅ si lo ves"
         
         return self.send_message(test_message)
 
@@ -203,32 +421,36 @@ class WhatsAppNotifierFree:
             print(f"❌ Error enviando mensaje WhatsApp Web: {str(e)}")
             return False
     
-    def send_portfolio_recommendations(self, portfolio_data: Dict, sell_recs: List[Dict], buy_opps: List[Dict]) -> bool:
-        """Envía recomendaciones usando WhatsApp Web"""
-        # Usar el mismo formato que Twilio pero simplificado
+    def send_portfolio_analysis_message(self, rules_analysis: Dict, expert_analysis: Dict, combined: Dict) -> bool:
+        """Envía análisis usando WhatsApp Web"""
+        # Usar formato simplificado para WhatsApp Web
         timestamp = datetime.now().strftime("%d/%m %H:%M")
+        metrics = rules_analysis.get('portfolio_metrics', {})
         
-        message = f"📊 BALANZ REPORT - {timestamp}\n"
+        message = f"📊 RECOMENDACIONES - {timestamp}\n\n"
         
         # Resumen básico
-        if portfolio_data:
-            dinero = portfolio_data.get('dinero_disponible', 0)
-            message += f"💰 Disponible: ${dinero:,.0f}\n"
+        total_value = metrics.get('total_value', 0)
+        total_pnl = metrics.get('total_pnl', 0)
         
-        # Ventas
-        if sell_recs:
-            message += f"🔴 VENDER ({len(sell_recs)}):\n"
-            for rec in sell_recs[:2]:
-                ticker = rec.get('ticker', 'N/A')
-                ganancia_pct = rec.get('gain_loss_pct', 0)
-                message += f"• {ticker} ({ganancia_pct:+.1f}%)\n"
+        message += f"💰 Total: ${total_value:,.0f}\n"
+        message += f"📈 P&L: ${total_pnl:,.0f}\n\n"
         
-        # Compras
-        if buy_opps:
-            message += f"🟢 COMPRAR ({len(buy_opps)}):\n"
-            for opp in buy_opps[:2]:
-                ticker = opp.get('ticker', 'N/A')
-                inversion = opp.get('suggested_investment', 0)
-                message += f"• {ticker} (${inversion:,.0f})\n"
+        # Recomendaciones básicas
+        rules_recs = rules_analysis.get('recommendations', [])
+        if rules_recs:
+            for rec in rules_recs[:3]:  # Top 3
+                ticker = rec.ticker
+                action_type = rec.action.value
+                shares = rec.suggested_shares
+                
+                if 'stop_loss' in action_type:
+                    message += f"🔴 VENDER {ticker}: {shares} acciones\n"
+                elif 'rebalanceo' in action_type:
+                    message += f"⚖️ REDUCIR {ticker}: {shares} acciones\n"
+                elif 'toma_ganancias' in action_type:
+                    message += f"💰 GANAR {ticker}: {shares} acciones\n"
+        else:
+            message += "✅ Cartera estable\n"
         
         return self.send_message_instant(message)
