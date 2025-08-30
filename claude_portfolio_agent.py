@@ -14,29 +14,55 @@ class ClaudePortfolioAgent:
         )
     
     def analyze_portfolio_with_expert_agent(self, portfolio_data: Dict, available_cash: float) -> Dict:
-        """Análisis completo usando agente experto de Claude"""
+        """Análisis completo usando agente experto con debug"""
         try:
             print("\n🤖 INICIANDO ANÁLISIS CON AGENTE EXPERTO")
             print("-" * 50)
             
-            # 1. Recopilar datos completos
+            # 1. Debug de datos de entrada
+            print("🔍 DEBUG: Verificando datos de entrada...")
+            print(f"   📊 Portfolio keys: {list(portfolio_data.keys())}")
+            print(f"   💰 Available cash: ${available_cash:,.2f}")
+            
+            activos = portfolio_data.get('activos', [])
+            print(f"   📊 Activos count: {len(activos)}")
+            for activo in activos:
+                ticker = activo.get('ticker', 'N/A')
+                dias = activo.get('dias_tenencia', 0)
+                pnl = activo.get('ganancia_perdida_porcentaje', 0)
+                print(f"      • {ticker}: {dias} días, {pnl:+.1f}%")
+            
+            # 2. Recopilar datos completos
+            print("🔍 DEBUG: Recopilando datos completos...")
             complete_data = self._gather_complete_portfolio_data(portfolio_data, available_cash)
+            print(f"   📊 Complete data keys: {list(complete_data.keys())}")
+            print(f"   📊 Positions count: {len(complete_data.get('positions', []))}")
             
-            # 2. Crear prompt especializado
+            # 3. Crear prompt
+            print("🔍 DEBUG: Creando prompt...")
             expert_prompt = self._create_expert_prompt(complete_data)
+            print(f"   📊 Prompt length: {len(expert_prompt)} chars")
+            print(f"   📊 Prompt preview: {expert_prompt[:200]}...")
             
-            # 3. Consultar al agente experto
+            # 4. Consultar agente
+            print("🔍 DEBUG: Consultando agente experto...")
             expert_response = self._query_expert_agent(expert_prompt)
+            print(f"   📊 Response length: {len(expert_response)} chars")
+            print(f"   📊 Response preview: {expert_response[:200]}...")
             
-            # 4. Parsear respuesta
+            # 5. Parsear respuesta
+            print("🔍 DEBUG: Parseando respuesta...")
             parsed_analysis = self._parse_expert_response(expert_response)
+            print(f"   📊 Parsed type: {type(parsed_analysis)}")
+            print(f"   📊 Parsed keys: {list(parsed_analysis.keys()) if isinstance(parsed_analysis, dict) else 'Not dict'}")
             
             print("✅ Análisis experto completado")
-            
             return parsed_analysis
             
         except Exception as e:
             print(f"❌ Error en análisis experto: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return self._create_fallback_analysis()
     
     def _gather_complete_portfolio_data(self, portfolio_data: Dict, available_cash: float) -> Dict:
@@ -341,24 +367,41 @@ Estructura tu análisis en JSON con estas secciones:
         return prompt
     
     def _query_expert_agent(self, prompt: str) -> str:
-        """Consulta al agente experto de Claude"""
+        """Consulta al agente experto de Claude con debug"""
         try:
-            if not os.getenv('ANTHROPIC_API_KEY'):
+            print("🔍 DEBUG: Verificando configuración API...")
+            api_key = os.getenv('ANTHROPIC_API_KEY')
+            if not api_key:
+                print("❌ ANTHROPIC_API_KEY no configurada")
                 return self._create_mock_expert_response()
             
+            print(f"   📊 API Key configured: {api_key[:10]}...")
+            
+            print("🔍 DEBUG: Enviando request a Claude...")
             message = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",  # Modelo corregido
+                model="claude-3-5-sonnet-20241022",
                 max_tokens=4000,
-                temperature=0.3,  # Menos creatividad, más consistencia
+                temperature=0.3,
                 messages=[
                     {"role": "user", "content": prompt}
                 ]
             )
             
-            return message.content[0].text
+            response_content = message.content[0].text
+            print(f"   📊 Claude response length: {len(response_content)} chars")
+            print(f"   📊 Claude response type: {type(response_content)}")
+            
+            # Verificar si contiene JSON
+            has_json = '{' in response_content and '}' in response_content
+            print(f"   📊 Contains JSON: {has_json}")
+            
+            return response_content
             
         except Exception as e:
-            print(f"⚠️ Error consultando agente experto: {str(e)}")
+            print(f"❌ Error consultando agente experto: {str(e)}")
+            print(f"   📊 Error type: {type(e)}")
+            import traceback
+            traceback.print_exc()
             return self._create_mock_expert_response()
     
     def _create_mock_expert_response(self) -> str:
