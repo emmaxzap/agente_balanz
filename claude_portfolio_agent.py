@@ -1,4 +1,4 @@
-# claude_portfolio_agent.py - Versión mejorada sin respuestas hardcodeadas
+# claude_portfolio_agent.py - Versión corregida del error de f-string
 import json
 from datetime import date, timedelta
 from typing import Dict, List
@@ -552,26 +552,26 @@ class ClaudePortfolioAgent:
     def _create_expert_prompt_improved(self, data: Dict) -> str:
         """Crea prompt mejorado con datos reales y técnicos - CON INSTRUCCIONES ESPECÍFICAS"""
         
-        prompt = f"""Eres un asesor financiero experto que debe dar recomendaciones ESPECÍFICAS y ACCIONABLES para una cartera real.
+        prompt = f"""Eres un gestor de carteras institucional senior con 25+ años de experiencia gestionando fondos de inversión en mercados emergentes, especializado en análisis técnico avanzado, gestión de riesgo cuantitativo y trading algorítmico.
 
-INSTRUCCIONES CRÍTICAS:
-- Debes generar recomendaciones específicas: "Comprar X cantidad a precio Y" o "Vender Z cantidad si precio baja a W"
-- Tu análisis será enviado por email a inversores que NO son expertos en finanzas
-- Usa lenguaje simple y claro, evita jerga técnica
-- Las recomendaciones deben ser ejecutables HOY o en días específicos
-- NUNCA uses texto genérico como "monitorear evolución" - sé específico
+CONTEXTO CRÍTICO:
+- Estás analizando una cartera REAL con datos históricos de 30 días y indicadores técnicos calculados
+- Cada recomendación será ejecutada por un trader que NO es experto
+- Tus recomendaciones deben ser ESPECÍFICAS: "Comprar X acciones a precio Y" o "Vender Z acciones si baja a W"
+- Usa tu experiencia en mercados volátiles argentinos y latinoamericanos
 
-DATOS REALES DE LA CARTERA:
+DATOS REALES DE LA CARTERA CON INDICADORES TÉCNICOS CALCULADOS:
 
-**RESUMEN FINANCIERO:**
-- Capital Disponible: ${data['portfolio_summary']['cash_available']:,.2f}
-- Valor Invertido: ${data['portfolio_summary']['current_value']:,.2f}
-- Ganancia/Pérdida: ${data['portfolio_summary']['total_pnl']:,.2f}
-- Número de Inversiones: {data['portfolio_summary']['positions_count']}
+RESUMEN DE CARTERA:
+💰 Capital Disponible: ${data['portfolio_summary']['cash_available']:,.2f}
+📊 Valor Total Invertido: ${data['portfolio_summary']['current_value']:,.2f}
+📈 Ganancia/Pérdida Total: ${data['portfolio_summary']['total_pnl']:,.2f}
+📋 Número de Posiciones: {data['portfolio_summary']['positions_count']}
 
-**ANÁLISIS DETALLADO CON DATOS HISTÓRICOS REALES:**"""
-        
+ANÁLISIS DETALLADO POR POSICIÓN CON DATOS HISTÓRICOS REALES:"""
+
         for pos in data['positions']:
+            ticker = pos['ticker']
             days_held = pos['days_held']
             timeframe = "Muy Reciente" if days_held <= 3 else "Reciente" if days_held <= 30 else "Establecida"
             
@@ -588,110 +588,194 @@ DATOS REALES DE LA CARTERA:
             prompt += f"""
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{pos['ticker']} - Inversión {timeframe} ({days_held} días)
+{ticker} - Posición {timeframe} ({days_held} días de tenencia)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-💼 POSICIÓN: {pos['shares']} acciones compradas a ${pos['avg_cost']:.2f} (Precio actual: ${pos['current_price']:.2f})
-💰 Ganancia/Pérdida: ${pos['pnl']:.2f} ({pos['pnl_pct']:+.1f}%) | Peso en cartera: {pos['position_size_pct']:.1%}"""
-            
-            # Datos fundamentales reales
+💼 POSICIÓN ACTUAL:
+• Cantidad: {pos['shares']} acciones
+• Precio Compra: ${pos['avg_cost']:.2f}
+• Precio Actual: ${pos['current_price']:.2f}
+• Valor Actual: ${pos['current_value']:,.0f}
+• Ganancia/Pérdida: ${pos['pnl']:.0f} ({pos['pnl_pct']:+.1f}%)
+• Peso en Cartera: {pos['position_size_pct']:.1%}"""
+
+            # Datos fundamentales reales scrapeados
             if fundamental.get('scraping_success'):
                 prompt += f"""
-🏭 INFORMACIÓN DE LA EMPRESA:"""
+
+🏭 DATOS FUNDAMENTALES (SCRAPEADOS):"""
                 if fundamental.get('sector'):
-                    prompt += f"\n   • Sector: {fundamental['sector']}"
+                    prompt += f"\n• Sector: {fundamental['sector']}"
                 if fundamental.get('industry'):
-                    prompt += f"\n   • Industria: {fundamental['industry']}"
+                    prompt += f"\n• Industria: {fundamental['industry']}"
                 if fundamental.get('daily_volume'):
-                    prompt += f"\n   • Volumen Diario: {fundamental['daily_volume']}"
-            
-            # Serie histórica completa
-            if data_points >= 10:
+                    prompt += f"\n• Volumen Diario: {fundamental['daily_volume']}"
+
+            # Serie histórica completa real
+            if data_points >= 15:
                 daily_prices = historical.get('daily_prices', [])
                 prompt += f"""
 
-📈 HISTORIAL DE PRECIOS REALES ({data_points} días):"""
+📈 SERIE HISTÓRICA REAL ({data_points} días):"""
                 
-                # Últimos 15 días para no saturar el prompt
-                recent_prices = daily_prices[-15:] if len(daily_prices) > 15 else daily_prices
+                # Mostrar últimos 10 días para análisis técnico
+                recent_prices = daily_prices[-10:] if len(daily_prices) > 10 else daily_prices
                 for day in recent_prices:
                     prompt += f"\n   {day['fecha']}: ${day['precio']:.2f}"
-            
-            # Indicadores técnicos calculados
+
+            # Indicadores técnicos calculados con datos reales
             if not tech_indicators.get('insufficient_data'):
                 prompt += f"""
 
-🔢 INDICADORES TÉCNICOS CALCULADOS:"""
+🔢 INDICADORES TÉCNICOS CALCULADOS CON DATOS REALES:"""
                 
                 if 'rsi_14' in tech_indicators:
                     rsi = tech_indicators['rsi_14']
                     if rsi > 70:
-                        rsi_status = 'SOBRECOMPRADO (muy caro)'
+                        rsi_status = 'sobrecomprado (muy caro)'
+                        rsi_signal = 'VENDER'
                     elif rsi < 30:
-                        rsi_status = 'SOBREVENDIDO (posible oportunidad)'
+                        rsi_status = 'sobrevendido extremo (oportunidad de compra)'
+                        rsi_signal = 'COMPRAR'
+                    elif rsi < 40:
+                        rsi_status = 'sobrevendido (posible oportunidad)'
+                        rsi_signal = 'COMPRAR/MANTENER'
                     else:
-                        rsi_status = 'NORMAL'
-                    prompt += f"\n   • RSI: {rsi:.1f} - {rsi_status}"
+                        rsi_status = 'neutral'
+                        rsi_signal = 'MANTENER'
+                    
+                    prompt += f"\n• RSI (14): {rsi:.1f} - {rsi_status} → {rsi_signal}"
                 
                 if 'macd' in tech_indicators:
                     macd = tech_indicators['macd']
-                    trend_text = 'ALCISTA' if macd.get('trend') == 'bullish' else 'BAJISTA' if macd.get('trend') == 'bearish' else 'NEUTRAL'
-                    prompt += f"\n   • MACD: {trend_text}"
+                    if macd.get('trend') == 'bullish':
+                        macd_signal = 'ALCISTA - Mantener/Comprar'
+                    elif macd.get('trend') == 'bearish':
+                        macd_signal = 'BAJISTA - Precaución/Vender'
+                    else:
+                        macd_signal = 'NEUTRAL - Esperar'
+                    
+                    prompt += f"\n• MACD: {macd_signal}"
                 
                 if 'volatility_annualized' in tech_indicators:
                     vol_annual = tech_indicators['volatility_annualized']
-                    vol_category = 'MUY ALTA' if vol_annual > 60 else 'ALTA' if vol_annual > 40 else 'MODERADA' if vol_annual > 20 else 'BAJA'
-                    prompt += f"\n   • Volatilidad: {vol_annual:.1f}% anual - {vol_category}"
-        
+                    if vol_annual > 60:
+                        vol_category = 'MUY ALTA (>60%)'
+                        vol_signal = 'REDUCIR POSICIÓN'
+                    elif vol_annual > 40:
+                        vol_category = 'ALTA (40-60%)'
+                        vol_signal = 'CAUTELA'
+                    elif vol_annual > 20:
+                        vol_category = 'MODERADA (20-40%)'
+                        vol_signal = 'NORMAL'
+                    else:
+                        vol_category = 'BAJA (<20%)'
+                        vol_signal = 'FAVORABLE'
+                    
+                    prompt += f"\n• Volatilidad: {vol_annual:.1f}% anual - {vol_category} → {vol_signal}"
+                
+                if 'bollinger' in tech_indicators:
+                    bollinger = tech_indicators['bollinger']
+                    pos_bollinger = bollinger.get('position', 'neutral')
+                    
+                    if pos_bollinger == 'below_lower':
+                        bollinger_signal = 'COMPRAR (cerca banda inferior)'
+                    elif pos_bollinger == 'above_upper':
+                        bollinger_signal = 'VENDER (cerca banda superior)'
+                    else:
+                        bollinger_signal = 'MANTENER (dentro de bandas)'
+                    
+                    prompt += f"\n• Bollinger Bands: {bollinger_signal}"
+                
+                if 'momentum_5d' in tech_indicators:
+                    momentum_5d = tech_indicators['momentum_5d']
+                    if momentum_5d > 5:
+                        momentum_signal = 'FUERTE ALCISTA'
+                    elif momentum_5d > 2:
+                        momentum_signal = 'ALCISTA MODERADO'
+                    elif momentum_5d < -5:
+                        momentum_signal = 'FUERTE BAJISTA'
+                    elif momentum_5d < -2:
+                        momentum_signal = 'BAJISTA MODERADO'
+                    else:
+                        momentum_signal = 'LATERAL'
+                    
+                    prompt += f"\n• Momentum 5d: {momentum_5d:+.1f}% - {momentum_signal}"
+
+        # Cerrar el prompt correctamente
         prompt += f"""
 
-**TU TRABAJO:**
+INSTRUCCIONES PARA TU ANÁLISIS:
 
-Analiza cada inversión y genera recomendaciones ESPECÍFICAS Y EJECUTABLES:
+Como gestor senior, debes generar recomendaciones ESPECÍFICAS y EJECUTABLES usando:
+1. Los indicadores técnicos REALES calculados arriba
+2. Tu experiencia en mercados emergentes volátiles
+3. Principios de gestión de riesgo institucional
+4. Consideración de los días de tenencia para cada posición
 
-**FORMATO DE RESPUESTA REQUERIDO:**
-```json
+RESPONDE EXCLUSIVAMENTE EN ESTE FORMATO JSON:
+
 {{
+  "analisis_tecnico": {{
+    "por_activo": {{
+      "TICKER": {{
+        "soporte": precio_numerico_calculado,
+        "resistencia": precio_numerico_calculado,
+        "rsi_analysis": "sobrevendido extremo (16.2)" o "sobrecomprado (78.4)" o "neutral (46.0)",
+        "macd_signal": "bullish" o "bearish" o "neutral",
+        "bollinger_position": "below_lower" o "above_upper" o "middle",
+        "volatility_assessment": "baja (31.4% anual)" o "alta (55.7% anual)",
+        "momentum": "alcista" o "bajista" o "neutral",
+        "recomendacion": "comprar rebote técnico" o "mantener" o "vender por sobrecompra"
+      }}
+    }},
+    "mercado_general": "análisis del contexto general basado en las posiciones"
+  }},
   "acciones_inmediatas": [
     {{
       "ticker": "TICKER_EXACTO",
-      "accion": "comprar/vender/mantener",
-      "cantidad": numero_exacto_de_acciones,
-      "precio_objetivo": precio_especifico,
-      "razon": "Explicación simple: RSI en X indica Y, precio bajó/subió por Z",
-      "urgencia": "alta/media/baja",
-      "inversion_total": cantidad * precio (solo para compras),
-      "stop_loss": precio_de_proteccion,
-      "take_profit": precio_de_venta_ganadora
+      "accion": "comprar" o "vender" o "mantener",
+      "cantidad": numero_exacto_acciones,
+      "precio_objetivo": precio_especifico_numerico,
+      "urgencia": "alta" o "media" o "baja",
+      "razon": "RSI 16.2 extremadamente sobrevendido + cerca banda inferior Bollinger",
+      "stop_loss": precio_numerico_stop_loss,
+      "take_profit": precio_numerico_take_profit
     }}
   ],
   "acciones_corto_plazo": [
     {{
       "ticker": "TICKER",
-      "accion": "accion_especifica",
-      "timeframe": "en X días específicos",
-      "condiciones": "Cuando el precio llegue a $X o RSI llegue a Y",
-      "trigger_price": precio_especifico_numerico,
-      "explicacion_simple": "Por qué y cuándo hacerlo en palabras simples"
+      "accion": "monitorear para compra",
+      "timeframe": "5 días",
+      "condiciones": "RSI supere 30 con volumen confirmatorio",
+      "trigger_price": precio_numerico_gatillo,
+      "explicacion_simple": "explicación técnica concisa"
     }}
   ],
   "gestion_riesgo": {{
     "riesgo_cartera": numero_1_a_10,
+    "volatilidad_observada": "54% promedio anualizada",
     "stop_loss_sugeridos": {{
-      "TICKER": precio_especifico_de_proteccion
+      "TICKER": precio_numerico_stop_loss
     }},
-    "recomendaciones_sizing": ["frases específicas sobre cuánto invertir"]
+    "recomendaciones_sizing": [
+      "Reducir exposición en COME y METR por alta volatilidad",
+      "Aumentar posiciones en ALUA por menor volatilidad"
+    ]
   }},
-  "analisis_tecnico": {{
-    "por_activo": {{
-      "TICKER": {{
-        "momentum": "alcista/bajista/neutral",
-        "rsi_analysis": "sobrecomprado/sobrevendido/normal (valor_exacto)",
-        "macd_signal": "bullish/bearish/neutral",
-        "volatility_assessment": "alta/moderada/baja (valor_calculado)",
-        "recomendacion": "Qué hacer basado en los indicadores reales"
-      }}
-    }}
-  }},
-  "razonamiento_integral": "Análisis completo en 2-3 oraciones explicando la situación actual y por qué recomiendas estas acciones específicas"
+  "razonamiento_integral": "La cartera muestra señales técnicas de sobreventa extrema (RSI<20 en varios activos) con volatilidades elevadas >50% anual. Se recomienda aprovechar rebotes técnicos en COME y EDN por RSIs en mínimos históricos, mientras se mantiene cautela en METR hasta confirmación de suelo. ALUA ofrece mejor perfil riesgo/retorno por menor volatilidad."
 }}
+
+CRÍTICO: Basa todas tus recomendaciones en los indicadores técnicos REALES calculados arriba. No uses valores genéricos."""
+        
+        return prompt
+    
+    def _get_market_context(self) -> Dict:
+        """Obtiene contexto de mercado"""
+        return {
+            'market_session': 'Regular trading',
+            'data_source': 'balanz_real_time_scraping',
+            'analysis_depth': 'full_technical_indicators_calculated'
+        }
+        
