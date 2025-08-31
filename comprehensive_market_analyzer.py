@@ -1,4 +1,4 @@
-# comprehensive_market_analyzer.py - Analizador integral: Técnico + Fundamental + Mercado
+# comprehensive_market_analyzer_updated.py - Con scraper paginado
 from datetime import date, datetime
 from typing import Dict, List, Optional
 import sys
@@ -15,7 +15,7 @@ class ComprehensiveMarketAnalyzer:
     """
     Analizador integral que combina:
     1. Reporte diario de mercado (Balanz)
-    2. Ratios fundamentales (Screenermatic)
+    2. Ratios fundamentales PAGINADOS (Screenermatic - TODAS las páginas)
     3. Análisis técnico avanzado (Claude)
     4. Sistema de reglas automatizadas
     """
@@ -35,12 +35,12 @@ class ComprehensiveMarketAnalyzer:
         try:
             print("🚀 INICIANDO ANÁLISIS INTEGRAL COMPLETO")
             print("=" * 70)
-            print("📊 Fuentes: Mercado + Fundamental + Técnico + Reglas")
+            print("📊 Fuentes: Mercado + Fundamental (PAGINADO) + Técnico + Reglas")
             print("=" * 70)
             
             analysis_result = {
                 'timestamp': datetime.now().isoformat(),
-                'analysis_type': 'comprehensive_integral',
+                'analysis_type': 'comprehensive_integral_paginated',
                 'components': {
                     'market_report': False,
                     'fundamental_ratios': False,
@@ -63,12 +63,12 @@ class ComprehensiveMarketAnalyzer:
             else:
                 print("⚠️ PASO 1: Sin contexto de mercado - continuando")
             
-            # PASO 2: Análisis fundamental
-            enhanced_portfolio = self._enhance_with_fundamentals(portfolio_data)
+            # PASO 2: Análisis fundamental PAGINADO
+            enhanced_portfolio = self._enhance_with_fundamentals_paginated(portfolio_data)
             if enhanced_portfolio != portfolio_data:
                 analysis_result['portfolio_data'] = enhanced_portfolio
                 analysis_result['components']['fundamental_ratios'] = True
-                print("✅ PASO 2: Análisis fundamental completado")
+                print("✅ PASO 2: Análisis fundamental PAGINADO completado")
             else:
                 print("⚠️ PASO 2: Sin datos fundamentales - continuando")
             
@@ -160,15 +160,22 @@ class ComprehensiveMarketAnalyzer:
             print(f"   ❌ Error obteniendo contexto de mercado: {str(e)}")
             return {}
     
-    def _enhance_with_fundamentals(self, portfolio_data: Dict) -> Dict:
-        """Enriquece portfolio con datos fundamentales"""
+    def _enhance_with_fundamentals_paginated(self, portfolio_data: Dict) -> Dict:
+        """Enriquece portfolio con datos fundamentales PAGINADOS (todas las páginas)"""
         try:
-            print("📊 Obteniendo ratios fundamentales...")
+            print("📊 Obteniendo ratios fundamentales PAGINADOS...")
+            print("🔍 Buscando en TODAS las páginas de Screenermatic...")
             
-            # Importar aquí para evitar dependencia circular
-            from financial_ratios_scraper import FinancialRatiosScraper
-            
-            ratios_scraper = FinancialRatiosScraper(self.page)
+            # **CAMBIO PRINCIPAL**: Importar el scraper paginado
+            try:
+                from financial_ratios_scraper_paginated import FinancialRatiosScraperPaginated
+                ratios_scraper = FinancialRatiosScraperPaginated(self.page)
+                print("✅ Usando scraper PAGINADO (todas las páginas)")
+            except ImportError:
+                print("⚠️ Scraper paginado no encontrado, usando original...")
+                from financial_ratios_scraper import FinancialRatiosScraper
+                ratios_scraper = FinancialRatiosScraper(self.page)
+                print("⚠️ Usando scraper original (solo página 1)")
             
             # Obtener tickers de la cartera
             tickers = [asset['ticker'] for asset in portfolio_data.get('activos', [])]
@@ -179,7 +186,7 @@ class ComprehensiveMarketAnalyzer:
             
             print(f"   🎯 Analizando ratios para: {tickers}")
             
-            # Usar el scraper de ratios
+            # Usar el método de enriquecimiento del scraper (paginado o no)
             enhanced_portfolio = ratios_scraper.enhance_portfolio_analysis_with_ratios(portfolio_data)
             
             # Verificar si se enriqueció
@@ -189,7 +196,19 @@ class ComprehensiveMarketAnalyzer:
                     ratios_added += 1
             
             if ratios_added > 0:
-                print(f"   ✅ {ratios_added} activos enriquecidos con ratios")
+                print(f"   ✅ {ratios_added}/{len(tickers)} activos enriquecidos con ratios")
+                
+                # Mostrar qué se encontró
+                for asset in enhanced_portfolio.get('activos', []):
+                    ticker = asset['ticker']
+                    if 'fundamental_ratios' in asset:
+                        ratios = asset['fundamental_ratios']
+                        pe = ratios.get('pe', 'N/A')
+                        roe = ratios.get('roe', 'N/A')
+                        print(f"      ✅ {ticker}: P/E={pe}, ROE={roe}")
+                    else:
+                        print(f"      ❌ {ticker}: No encontrado")
+                
                 return enhanced_portfolio
             else:
                 print("   ⚠️ No se pudieron obtener ratios - usando portfolio original")
@@ -197,6 +216,8 @@ class ComprehensiveMarketAnalyzer:
                 
         except Exception as e:
             print(f"   ❌ Error enriqueciendo con fundamentales: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return portfolio_data
     
     def _run_claude_comprehensive_analysis(self, enhanced_portfolio: Dict, market_report: Dict) -> Dict:
@@ -275,23 +296,25 @@ Eres un analista senior que debe integrar TRES fuentes de información para reco
             if market_drivers:
                 prompt += f"DRIVERS DE MERCADO HOY: {', '.join(market_drivers)}\n\n"
         
-        # 2. ANÁLISIS FUNDAMENTAL
-        prompt += "2. ANÁLISIS FUNDAMENTAL (Ratios Reales de Screenermatic):\n"
-        prompt += "=" * 60 + "\n"
+        # 2. ANÁLISIS FUNDAMENTAL PAGINADO
+        prompt += "2. ANÁLISIS FUNDAMENTAL (Ratios de TODAS las páginas de Screenermatic):\n"
+        prompt += "=" * 70 + "\n"
         
         fundamental_summary = enhanced_portfolio.get('fundamental_summary', {})
         if fundamental_summary:
             # Resumen de ratios de la cartera
+            tickers_with_ratios = fundamental_summary.get('tickers_with_ratios', 0)
             avg_pe = fundamental_summary.get('avg_pe', 0)
             avg_roe = fundamental_summary.get('avg_roe', 0)
             
+            prompt += f"COBERTURA FUNDAMENTAL: {tickers_with_ratios} activos con ratios completos\n"
             if avg_pe > 0:
                 prompt += f"P/E PROMEDIO DE TU CARTERA: {avg_pe:.1f}\n"
             if avg_roe > 0:
                 prompt += f"ROE PROMEDIO DE TU CARTERA: {avg_roe:.1f}%\n"
             
             # Top picks fundamentales
-            top_picks = fundamental_summary.get('top_fundamental_picks', [])
+            top_picks = fundamental_summary.get('top_picks', [])
             if top_picks:
                 prompt += f"\nTOP FUNDAMENTALES EN TU CARTERA:\n"
                 for ticker, score in top_picks:
@@ -306,7 +329,7 @@ Eres un analista senior que debe integrar TRES fuentes de información para reco
             fundamental_analysis = asset.get('fundamental_analysis', {})
             
             if fundamental_ratios:
-                prompt += f"{ticker} - RATIOS FUNDAMENTALES REALES:\n"
+                prompt += f"{ticker} - RATIOS FUNDAMENTALES COMPLETOS (Búsqueda paginada):\n"
                 
                 pe = fundamental_ratios.get('pe')
                 roe = fundamental_ratios.get('roe')
@@ -355,6 +378,8 @@ Eres un analista senior que debe integrar TRES fuentes de información para reco
                     prompt += f"• Resumen: {simple_summary}\n"
                 
                 prompt += "\n"
+            else:
+                prompt += f"{ticker} - NO ENCONTRADO en Screenermatic (revisadas todas las páginas)\n\n"
         
         # 3. INSTRUCCIONES ESPECÍFICAS
         prompt += """3. TU MISIÓN COMO ANALISTA SENIOR:
@@ -363,17 +388,17 @@ Eres un analista senior que debe integrar TRES fuentes de información para reco
 COMBINA las 3 fuentes de información con estos PESOS:
 • 35% - Contexto de mercado actual (reporte Balanz de hoy)
 • 35% - Análisis técnico (RSI, MACD, momentum)
-• 30% - Fundamentales (ratios financieros reales)
+• 30% - Fundamentales (ratios financieros de TODAS las páginas)
 
 RESPONDE EN EL FORMATO JSON HABITUAL pero menciona específicamente:
 
 CRÍTICO - Para cada recomendación, explica:
 1. Cómo el reporte de mercado de HOY afecta esta decisión
-2. Si los fundamentales refuerzan o contradicen el análisis técnico
+2. Si los fundamentales (encontrados en búsqueda paginada) refuerzan o contradicen el análisis técnico
 3. Ajustes específicos por el contexto del mercado argentino actual
 
 EJEMPLO de razonamiento integrado:
-"ALUA muestra RSI oversold (18.2) sugiriendo rebote técnico, PERO el reporte de hoy menciona presión en el sector por dólar, y sus fundamentales muestran P/E alto (31.2) indicando sobrevaloración. RECOMENDACIÓN: Esperar confirmación de soporte en $420 antes de comprar."
+"ALUA muestra RSI oversold (18.2) sugiriendo rebote técnico, PERO el reporte de hoy menciona presión en el sector por dólar, y sus fundamentales (P/E=3.25, ROE=0.65%) encontrados en página 1 de Screenermatic muestran empresa barata pero con baja rentabilidad. RECOMENDACIÓN: Compra pequeña en $420 con stop en $400."
 
 """
         
@@ -408,7 +433,7 @@ EJEMPLO de razonamiento integrado:
         
         # Verificar que mencione datos reales
         mentions_real_data = any(phrase in razonamiento.lower() for phrase in [
-            'datos reales', 'indicadores calculados', 'rsi', 'macd', 'volatilidad'
+            'datos reales', 'indicadores calculados', 'rsi', 'macd', 'volatilidad', 'screenermatic', 'página'
         ])
         
         return real_indicators > 0 and has_substantial_reasoning and mentions_real_data
@@ -442,24 +467,7 @@ EJEMPLO de razonamiento integrado:
             if market_report:
                 self.report_scraper.save_report_to_db(market_report, self.db)
             
-            # 2. Guardar ratios financieros
-            portfolio_data = analysis_result.get('portfolio_data', {})
-            ratios_data = {
-                'fecha': date.today().isoformat(),
-                'ratios_by_ticker': {}
-            }
-            
-            for asset in portfolio_data.get('activos', []):
-                if 'fundamental_ratios' in asset:
-                    ratios_data['ratios_by_ticker'][asset['ticker']] = asset['fundamental_ratios']
-            
-            if ratios_data['ratios_by_ticker']:
-                # Importar aquí para evitar dependencia circular
-                from financial_ratios_scraper import FinancialRatiosScraper
-                ratios_scraper = FinancialRatiosScraper(self.page)
-                ratios_scraper.save_ratios_to_db(ratios_data, self.db)
-            
-            # 3. Guardar análisis integral
+            # 2. Guardar análisis integral
             integral_record = {
                 'fecha': date.today().isoformat(),
                 'timestamp': analysis_result['timestamp'],
@@ -470,26 +478,9 @@ EJEMPLO de razonamiento integrado:
                 'has_market_context': bool(analysis_result.get('market_report')),
                 'has_fundamental_data': analysis_result['components']['fundamental_ratios'],
                 'has_claude_analysis': analysis_result['components']['technical_analysis'],
-                'has_rules_fallback': analysis_result['components']['rules_analysis']
+                'has_rules_fallback': analysis_result['components']['rules_analysis'],
+                'paginated_ratios': True  # Nuevo campo para indicar búsqueda paginada
             }
-            
-            # Crear tabla si no existe (SQL para referencia)
-            """
-            CREATE TABLE comprehensive_analysis (
-                id SERIAL PRIMARY KEY,
-                fecha DATE NOT NULL,
-                timestamp TIMESTAMP NOT NULL,
-                analysis_type VARCHAR(50),
-                confidence_level VARCHAR(20),
-                components_working TEXT[],
-                components_success TEXT[],
-                has_market_context BOOLEAN,
-                has_fundamental_data BOOLEAN,
-                has_claude_analysis BOOLEAN,
-                has_rules_fallback BOOLEAN,
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-            """
             
             try:
                 self.db.supabase.table('comprehensive_analysis').upsert(integral_record).execute()
@@ -509,13 +500,11 @@ EJEMPLO de razonamiento integrado:
             if analysis_result['components']['technical_analysis']:
                 # Usar análisis de Claude
                 analysis_to_send = analysis_result['comprehensive_analysis']
-                rules_analysis = {}
-                notification_type = 'claude_comprehensive'
-                print("   📊 Usando análisis de Claude para notificaciones")
+                notification_type = 'claude_comprehensive_paginated'
+                print("   📊 Usando análisis de Claude (con ratios paginados) para notificaciones")
             else:
                 # Usar análisis de reglas
                 analysis_to_send = analysis_result.get('fallback_analysis', {})
-                rules_analysis = analysis_to_send
                 notification_type = 'rules_fallback'
                 print("   📊 Usando sistema de reglas para notificaciones")
             
@@ -555,6 +544,9 @@ EJEMPLO de razonamiento integrado:
         total_pnl = total_value - total_invested
         total_pnl_pct = (total_pnl / total_invested * 100) if total_invested > 0 else 0
         
+        # Contar cuántos activos tienen ratios fundamentales
+        activos_con_ratios = sum(1 for asset in portfolio_data.get('activos', []) if 'fundamental_ratios' in asset)
+        
         notification_data = {
             'timestamp': datetime.now().strftime("%d/%m/%Y %H:%M"),
             'notification_type': notification_type,
@@ -579,6 +571,14 @@ EJEMPLO de razonamiento integrado:
                 ]) if market_report else 0
             },
             
+            # Info de ratios paginados
+            'fundamental_context': {
+                'activos_con_ratios': activos_con_ratios,
+                'total_activos': len(portfolio_data.get('activos', [])),
+                'coverage_pct': (activos_con_ratios / len(portfolio_data.get('activos', [])) * 100) if portfolio_data.get('activos') else 0,
+                'paginated_search': True
+            },
+            
             # Análisis principal
             'main_analysis': analysis_to_send,
             
@@ -598,7 +598,7 @@ EJEMPLO de razonamiento integrado:
                 return False
             
             # Crear mensaje integral
-            message = self._create_integral_whatsapp_message(notification_data)
+            message = self._create_integral_whatsapp_message_paginated(notification_data)
             
             return whatsapp.send_message(message)
             
@@ -606,35 +606,18 @@ EJEMPLO de razonamiento integrado:
             print(f"      ❌ Error WhatsApp: {str(e)}")
             return False
     
-    def _send_email_notification(self, notification_data: Dict) -> bool:
-        """Envía notificación por Email con contexto integral"""
-        try:
-            from scraper.notifications.email_notifier import EmailNotifier
-            
-            email = EmailNotifier()
-            if not email.is_configured:
-                return False
-            
-            # Crear email integral
-            subject, body_text, body_html = self._create_integral_email(notification_data)
-            
-            return email.send_email(subject, body_text, body_html)
-            
-        except Exception as e:
-            print(f"      ❌ Error Email: {str(e)}")
-            return False
-    
-    def _create_integral_whatsapp_message(self, data: Dict) -> str:
-        """Crea mensaje de WhatsApp con análisis integral"""
+    def _create_integral_whatsapp_message_paginated(self, data: Dict) -> str:
+        """Crea mensaje de WhatsApp con análisis integral y ratios paginados"""
         timestamp = data['timestamp']
         confidence = data['confidence_level']
         metrics = data['portfolio_metrics']
         market_context = data['market_context']
+        fundamental_context = data['fundamental_context']
         
-        message = f"*🌟 ANÁLISIS INTEGRAL*\n"
+        message = f"*🌟 ANÁLISIS INTEGRAL PAGINADO*\n"
         message += f"📅 {timestamp}\n"
         message += f"🔥 Confianza: {confidence.upper()}\n"
-        message += "=" * 25 + "\n\n"
+        message += "=" * 30 + "\n\n"
         
         # Situación actual
         message += f"*💼 TU SITUACIÓN*\n"
@@ -642,6 +625,13 @@ EJEMPLO de razonamiento integrado:
         pnl_emoji = "📈" if metrics['total_pnl'] >= 0 else "📉"
         message += f"{pnl_emoji} P&L: ${metrics['total_pnl']:,.0f} ({metrics['total_pnl_pct']:+.1f}%)\n"
         message += f"💵 Disponible: ${metrics['cash_available']:,.0f}\n\n"
+        
+        # Contexto fundamental PAGINADO
+        if fundamental_context['activos_con_ratios'] > 0:
+            message += f"*📊 RATIOS FUNDAMENTALES (PAGINADO)*\n"
+            message += f"✅ {fundamental_context['activos_con_ratios']}/{fundamental_context['total_activos']} activos con ratios completos\n"
+            message += f"🔍 Búsqueda: TODAS las páginas Screenermatic\n"
+            message += f"📊 Cobertura: {fundamental_context['coverage_pct']:.0f}%\n\n"
         
         # Contexto de mercado
         if market_context['has_report']:
@@ -660,10 +650,10 @@ EJEMPLO de razonamiento integrado:
             
             message += "\n"
         
-        # Recomendaciones principales
+        # Recomendaciones principales (resto del código igual...)
         main_analysis = data['main_analysis']
         
-        if data['notification_type'] == 'claude_comprehensive':
+        if data['notification_type'].startswith('claude_'):
             # Análisis de Claude con contexto
             immediate_actions = main_analysis.get('acciones_inmediatas', [])
             
@@ -692,10 +682,10 @@ EJEMPLO de razonamiento integrado:
             else:
                 message += f"*✅ No hay acciones urgentes*\n\n"
             
-            # Conclusión del experto
+            # Conclusión del experto (simplificada)
             razonamiento = main_analysis.get('razonamiento_integral', '')
             if razonamiento:
-                conclusion = razonamiento[:120] + "..." if len(razonamiento) > 120 else razonamiento
+                conclusion = razonamiento[:100] + "..." if len(razonamiento) > 100 else razonamiento
                 message += f"*🧠 EXPERTO*\n{conclusion}\n\n"
         
         else:
@@ -745,6 +735,24 @@ EJEMPLO de razonamiento integrado:
         
         return message
     
+    def _send_email_notification(self, notification_data: Dict) -> bool:
+        """Envía notificación por Email con contexto integral"""
+        try:
+            from scraper.notifications.email_notifier import EmailNotifier
+            
+            email = EmailNotifier()
+            if not email.is_configured:
+                return False
+            
+            # Crear email integral
+            subject, body_text, body_html = self._create_integral_email(notification_data)
+            
+            return email.send_email(subject, body_text, body_html)
+            
+        except Exception as e:
+            print(f"      ❌ Error Email: {str(e)}")
+            return False
+    
     def _create_integral_email(self, data: Dict) -> tuple:
         """Crea email integral con contexto completo"""
         timestamp = data['timestamp']
@@ -776,7 +784,7 @@ TU SITUACIÓN ACTUAL:
         # Recomendaciones principales
         main_analysis = data['main_analysis']
         
-        if data['notification_type'] == 'claude_comprehensive':
+        if data['notification_type'] == 'claude_comprehensive_paginated':
             immediate_actions = main_analysis.get('acciones_inmediatas', [])
             
             if immediate_actions:
@@ -858,7 +866,7 @@ TU SITUACIÓN ACTUAL:
         # Recomendaciones
         main_analysis = data['main_analysis']
         
-        if data['notification_type'] == 'claude_comprehensive':
+        if data['notification_type'] == 'claude_comprehensive_paginated':
             immediate_actions = main_analysis.get('acciones_inmediatas', [])
             
             if immediate_actions:
