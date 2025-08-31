@@ -7,10 +7,9 @@ from pathlib import Path
 # Imports de tus módulos existentes
 sys.path.append(str(Path(__file__).parent))
 
+# NOTA: Imports sin circular dependencies
 from balanz_daily_report_scraper import BalanzDailyReportScraper
-from financial_ratios_scraper import FinancialRatiosScraper
 from claude_portfolio_agent import ClaudePortfolioAgent
-from portfolio_manager import PortfolioManager
 
 class ComprehensiveMarketAnalyzer:
     """
@@ -27,11 +26,9 @@ class ComprehensiveMarketAnalyzer:
         
         # Inicializar scrapers especializados
         self.report_scraper = BalanzDailyReportScraper(page)
-        self.ratios_scraper = FinancialRatiosScraper(page)
         
-        # Inicializar analizadores existentes
+        # Inicializar analizador Claude
         self.claude_agent = ClaudePortfolioAgent(db_manager, page)
-        self.portfolio_manager = PortfolioManager(page)
     
     def run_comprehensive_analysis(self, portfolio_data: Dict) -> Dict:
         """Ejecuta análisis integral completo con todas las fuentes de datos"""
@@ -168,6 +165,11 @@ class ComprehensiveMarketAnalyzer:
         try:
             print("📊 Obteniendo ratios fundamentales...")
             
+            # Importar aquí para evitar dependencia circular
+            from financial_ratios_scraper import FinancialRatiosScraper
+            
+            ratios_scraper = FinancialRatiosScraper(self.page)
+            
             # Obtener tickers de la cartera
             tickers = [asset['ticker'] for asset in portfolio_data.get('activos', [])]
             
@@ -178,7 +180,7 @@ class ComprehensiveMarketAnalyzer:
             print(f"   🎯 Analizando ratios para: {tickers}")
             
             # Usar el scraper de ratios
-            enhanced_portfolio = self.ratios_scraper.enhance_portfolio_analysis_with_ratios(portfolio_data)
+            enhanced_portfolio = ratios_scraper.enhance_portfolio_analysis_with_ratios(portfolio_data)
             
             # Verificar si se enriqueció
             ratios_added = 0
@@ -452,7 +454,10 @@ EJEMPLO de razonamiento integrado:
                     ratios_data['ratios_by_ticker'][asset['ticker']] = asset['fundamental_ratios']
             
             if ratios_data['ratios_by_ticker']:
-                self.ratios_scraper.save_ratios_to_db(ratios_data, self.db)
+                # Importar aquí para evitar dependencia circular
+                from financial_ratios_scraper import FinancialRatiosScraper
+                ratios_scraper = FinancialRatiosScraper(self.page)
+                ratios_scraper.save_ratios_to_db(ratios_data, self.db)
             
             # 3. Guardar análisis integral
             integral_record = {
@@ -1140,7 +1145,7 @@ def test_comprehensive_analyzer_standalone():
             'BalanzDailyReportScraper': False,
             'FinancialRatiosScraper': False,
             'ClaudePortfolioAgent': False,
-            'PortfolioManager': False
+            'AdvancedPortfolioManager': False
         }
         
         try:
@@ -1162,8 +1167,8 @@ def test_comprehensive_analyzer_standalone():
             pass
         
         try:
-            from portfolio_manager import PortfolioManager
-            components_available['PortfolioManager'] = True
+            from advanced_portfolio_manager import AdvancedPortfolioManager
+            components_available['AdvancedPortfolioManager'] = True
         except ImportError:
             pass
         

@@ -205,7 +205,7 @@ def run_portfolio_analysis(scraper, portfolio_data, basic_mode=False):
         
         try:
             # NUEVO: ANÁLISIS INTEGRAL CON REPORTE Y RATIOS
-            from financial_ratios_scraper import ComprehensiveMarketAnalyzer
+            from comprehensive_market_analyzer import ComprehensiveMarketAnalyzer
             
             # Crear analizador integral
             comprehensive_analyzer = ComprehensiveMarketAnalyzer(scraper.page, SupabaseManager())

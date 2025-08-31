@@ -121,7 +121,7 @@ def test_complete_integration():
             # Crear datos de cartera simulados para test
             test_portfolio_data = create_test_portfolio_data()
             
-            from financial_ratios_scraper import ComprehensiveMarketAnalyzer
+            from comprehensive_market_analyzer import ComprehensiveMarketAnalyzer
             
             comprehensive_analyzer = ComprehensiveMarketAnalyzer(scraper.page, SupabaseManager())
             
@@ -572,7 +572,8 @@ def run_quick_test():
     print("4️⃣ Nuevos módulos...")
     try:
         from balanz_daily_report_scraper import BalanzDailyReportScraper
-        from financial_ratios_scraper import FinancialRatiosScraper, ComprehensiveMarketAnalyzer
+        from financial_ratios_scraper import FinancialRatiosScraper
+        from comprehensive_market_analyzer import ComprehensiveMarketAnalyzer
         print("✅ Módulos de análisis integral disponibles")
         components_ok += 1
     except Exception as e:
