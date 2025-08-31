@@ -147,13 +147,13 @@ class FinancialRatiosScraper:
             # Remover caracteres especiales pero preservar números y decimales
             if field_name == 'market_cap':
                 # Market cap puede tener 'B' para billones
-                clean_text = text.replace('B', '').replace(', '').strip()
+                clean_text = text.replace('B', '').replace(',', '').strip()
             elif field_name in ['change_pct']:
                 # Porcentajes
                 clean_text = text.replace('%', '').replace('+', '').strip()
             else:
                 # Otros ratios
-                clean_text = text.replace(', '').replace(',', '').strip()
+                clean_text = text.replace(',', '').strip()
             
             return float(clean_text)
             
@@ -511,171 +511,6 @@ class FinancialRatiosScraper:
             print(f"❌ Error guardando ratios: {str(e)}")
             return False
 
-# INTEGRACIÓN COMPLETA: REPORTE + RATIOS + ANÁLISIS
-class ComprehensiveMarketAnalyzer:
-    def __init__(self, page, db_manager):
-        self.page = page
-        self.db = db_manager
-        self.report_scraper = BalanzDailyReportScraper(page)
-        self.ratios_scraper = FinancialRatiosScraper(page)
-    
-    def run_comprehensive_analysis(self, portfolio_data: Dict) -> Dict:
-        """Análisis completo: Técnico + Fundamental + Contexto de Mercado"""
-        try:
-            print("🚀 ANÁLISIS INTEGRAL: TÉCNICO + FUNDAMENTAL + MERCADO")
-            print("=" * 65)
-            
-            # 1. Contexto de mercado (Reporte Balanz)
-            print("📊 PASO 1: Contexto de mercado actual...")
-            daily_report = self.report_scraper.get_daily_market_report()
-            
-            # 2. Análisis fundamental (Ratios)
-            print("📊 PASO 2: Análisis fundamental...")
-            tickers = [asset['ticker'] for asset in portfolio_data.get('activos', [])]
-            enhanced_portfolio = self.ratios_scraper.enhance_portfolio_analysis_with_ratios(portfolio_data)
-            
-            # 3. Tu análisis técnico existente
-            print("📊 PASO 3: Análisis técnico...")
-            from claude_portfolio_agent import ClaudePortfolioAgent
-            claude_agent = ClaudePortfolioAgent(self.db, self.page)
-            
-            # 4. Combinar todo en un super-prompt para Claude
-            super_prompt = self._create_comprehensive_prompt(
-                enhanced_portfolio, daily_report, tickers
-            )
-            
-            # 5. Ejecutar análisis integral
-            comprehensive_analysis = self._run_enhanced_claude_analysis(
-                claude_agent, enhanced_portfolio, super_prompt
-            )
-            
-            # 6. Guardar todo en BD
-            self._save_comprehensive_data(daily_report, enhanced_portfolio, comprehensive_analysis)
-            
-            return {
-                'portfolio_data': enhanced_portfolio,
-                'market_report': daily_report,
-                'comprehensive_analysis': comprehensive_analysis,
-                'analysis_type': 'comprehensive_technical_fundamental_market',
-                'confidence_level': 'high'
-            }
-            
-        except Exception as e:
-            print(f"❌ Error en análisis integral: {str(e)}")
-            return {}
-    
-    def _create_comprehensive_prompt(self, enhanced_portfolio: Dict, daily_report: Dict, tickers: List[str]) -> str:
-        """Crea super-prompt con toda la información disponible"""
-        
-        prompt = f"""ANÁLISIS INTEGRAL DE CARTERA CON CONTEXTO COMPLETO
-
-Eres un analista senior que debe integrar 3 fuentes de información para dar recomendaciones precisas:
-
-1. CONTEXTO DE MERCADO HOY (Reporte Balanz):
-"""
-        
-        # Agregar reporte de mercado
-        if daily_report and 'full_text' in daily_report:
-            market_text = daily_report['full_text'][:1500]  # Limitar tamaño
-            prompt += f"{market_text}\n\n"
-            
-            # Insights específicos
-            portfolio_insights = daily_report.get('portfolio_insights', {})
-            if portfolio_insights.get('tickers_mencionados'):
-                prompt += "MENCIONES ESPECÍFICAS DE TUS ACTIVOS:\n"
-                for ticker, info in portfolio_insights['tickers_mencionados'].items():
-                    if info['mencionado']:
-                        prompt += f"• {ticker}: {info.get('contexto', 'Mencionado')}\n"
-                prompt += "\n"
-        
-        prompt += "2. ANÁLISIS FUNDAMENTAL (Ratios financieros reales):\n"
-        
-        # Agregar ratios fundamentales
-        for asset in enhanced_portfolio.get('activos', []):
-            ticker = asset['ticker']
-            fundamental_ratios = asset.get('fundamental_ratios', {})
-            fundamental_analysis = asset.get('fundamental_analysis', {})
-            
-            if fundamental_ratios:
-                prompt += f"\n{ticker} - RATIOS FUNDAMENTALES:\n"
-                prompt += f"• P/E: {fundamental_ratios.get('pe', 'N/A')}\n"
-                prompt += f"• ROE: {fundamental_ratios.get('roe', 'N/A')}%\n"
-                prompt += f"• Debt/Equity: {fundamental_ratios.get('debt_to_equity', 'N/A')}\n"
-                prompt += f"• Score Fundamental: {fundamental_ratios.get('fundamental_score', 'N/A')}/100\n"
-                
-                if fundamental_analysis:
-                    prompt += f"• Evaluación: {fundamental_analysis.get('simple_summary', 'N/A')}\n"
-        
-        prompt += f"""
-
-3. TU MISIÓN:
-Integra el contexto de mercado actual + análisis fundamental + análisis técnico para generar recomendaciones DEFINITIVAS.
-
-PESO LA INFORMACIÓN ASÍ:
-• 40% - Análisis técnico (RSI, MACD, momentum)
-• 35% - Contexto de mercado actual (reporte Balanz)
-• 25% - Fundamentales (ratios financieros)
-
-RESPONDE EN EL MISMO FORMATO JSON DE SIEMPRE, pero menciona específicamente:
-- Cómo el reporte de hoy afecta cada recomendación
-- Si los fundamentales refuerzan o contradicen el análisis técnico
-- Ajustes por contexto de mercado argentino actual
-
-"""
-        
-        return prompt
-    
-    def _run_enhanced_claude_analysis(self, claude_agent, enhanced_portfolio: Dict, super_prompt: str) -> Dict:
-        """Ejecuta Claude con el super-prompt integral"""
-        try:
-            # Reemplazar método de prompt temporalmente
-            original_method = claude_agent._create_expert_prompt_improved
-            
-            def comprehensive_prompt_method(data):
-                original_prompt = original_method(data)
-                return super_prompt + "\n\n" + original_prompt
-            
-            claude_agent._create_expert_prompt_improved = comprehensive_prompt_method
-            
-            # Ejecutar análisis
-            analysis = claude_agent.analyze_portfolio_with_expert_agent(
-                enhanced_portfolio, enhanced_portfolio.get('dinero_disponible', 0)
-            )
-            
-            # Restaurar método
-            claude_agent._create_expert_prompt_improved = original_method
-            
-            return analysis
-            
-        except Exception as e:
-            print(f"❌ Error en análisis Claude integral: {str(e)}")
-            return {}
-    
-    def _save_comprehensive_data(self, daily_report: Dict, enhanced_portfolio: Dict, analysis: Dict) -> None:
-        """Guarda todos los datos del análisis integral"""
-        try:
-            # Guardar reporte diario
-            if daily_report:
-                self.report_scraper.save_report_to_db(daily_report, self.db)
-            
-            # Guardar ratios financieros
-            ratios_data = {
-                'fecha': date.today().isoformat(),
-                'ratios_by_ticker': {}
-            }
-            
-            for asset in enhanced_portfolio.get('activos', []):
-                if 'fundamental_ratios' in asset:
-                    ratios_data['ratios_by_ticker'][asset['ticker']] = asset['fundamental_ratios']
-            
-            if ratios_data['ratios_by_ticker']:
-                self.ratios_scraper.save_ratios_to_db(ratios_data, self.db)
-            
-            print("✅ Datos integrales guardados en BD")
-            
-        except Exception as e:
-            print(f"⚠️ Error guardando datos integrales: {str(e)}")
-
 # FUNCIÓN DE TESTING SIMPLE
 def test_report_scraper_simple():
     """Test básico sin Playwright para verificar lógica"""
@@ -690,6 +525,7 @@ def test_report_scraper_simple():
     """
     
     # Test de extracción de insights
+    from balanz_daily_report_scraper import BalanzDailyReportScraper
     scraper = BalanzDailyReportScraper(None)  # Sin página para test
     
     # Simular portfolio insights
