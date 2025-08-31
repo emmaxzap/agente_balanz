@@ -20,8 +20,7 @@ import sys
 import argparse
 from datetime import date
 from pathlib import Path
-
-# Agregar el directorio raíz al path
+from balanz_daily_report_scraper import ComprehensiveMarketAnalyzer
 sys.path.append(str(Path(__file__).parent))
 
 from scraper.web_scraper import WebScraperPlaywright
