@@ -12,8 +12,8 @@ class FinancialRatiosScraperPaginated:
         self.ratios_urls = [
             "https://www.screenermatic.com/general_ratios.php?variable=&variable2=art_ticker&tipo=asc&ini=&scrollPos=0",
             "https://www.screenermatic.com/general_ratios.php?variable=&variable2=art_ticker&tipo=asc&ini=20&scrollPos=300",
-            "https://www.screenermatic.com/general_ratios.php?variable=&variable2=art_ticker&tipo=asc&ini=40&scrollPos=200",
-            "https://www.screenermatic.com/general_ratios.php?variable=&variable2=art_ticker&tipo=asc&ini=60&scrollPos=300"
+            "https://www.screenermatic.com/general_ratios.php?variable=&variable2=art_ticker&tipo=asc&ini=40&scrollPos=200"
+            # Eliminamos la página 4 que está fallando
         ]
     
     def get_financial_ratios_for_tickers(self, target_tickers: List[str]) -> Dict:
