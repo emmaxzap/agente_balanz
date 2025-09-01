@@ -460,36 +460,37 @@ EJEMPLO de razonamiento integrado:
             return {}
     
     def _save_comprehensive_data(self, analysis_result: Dict) -> None:
-        """Guarda todos los datos del análisis integral"""
-        try:
-            # 1. Guardar reporte diario
-            market_report = analysis_result.get('market_report', {})
-            if market_report:
-                self.report_scraper.save_report_to_db(market_report, self.db)
-            
-            # 2. Guardar análisis integral
-            integral_record = {
-                'fecha': date.today().isoformat(),
-                'timestamp': analysis_result['timestamp'],
-                'analysis_type': analysis_result['analysis_type'],
-                'confidence_level': analysis_result['confidence_level'],
-                'components_working': list(analysis_result['components'].keys()),
-                'components_success': [k for k, v in analysis_result['components'].items() if v],
-                'has_market_context': bool(analysis_result.get('market_report')),
-                'has_fundamental_data': analysis_result['components']['fundamental_ratios'],
-                'has_claude_analysis': analysis_result['components']['technical_analysis'],
-                'has_rules_fallback': analysis_result['components']['rules_analysis'],
-                'paginated_ratios': True  # Nuevo campo para indicar búsqueda paginada
-            }
-            
+            """Guarda todos los datos del análisis integral - CORREGIDO"""
             try:
-                self.db.supabase.table('comprehensive_analysis').upsert(integral_record).execute()
-                print("   ✅ Análisis integral guardado en BD")
+                # 1. Guardar reporte diario
+                market_report = analysis_result.get('market_report', {})
+                if market_report:
+                    self.report_scraper.save_report_to_db(market_report, self.db)
+                
+                # 2. Guardar análisis integral - TABLA CORREGIDA
+                integral_record = {
+                    'fecha': date.today().isoformat(),
+                    'timestamp': analysis_result['timestamp'],
+                    'analysis_type': analysis_result['analysis_type'],
+                    'confidence_level': analysis_result['confidence_level'],
+                    'components_working': list(analysis_result['components'].keys()),
+                    'components_success': [k for k, v in analysis_result['components'].items() if v],
+                    'has_market_context': bool(analysis_result.get('market_report')),
+                    'has_fundamental_data': analysis_result['components']['fundamental_ratios'],
+                    'has_claude_analysis': analysis_result['components']['technical_analysis'],
+                    'has_rules_fallback': analysis_result['components']['rules_analysis'],
+                    'paginated_ratios': True
+                }
+                
+                try:
+                    # CORREGIDO: usar 'comparative_analysis' en lugar de 'comprehensive_analysis'
+                    self.db.supabase.table('comparative_analysis').upsert(integral_record).execute()
+                    print("   ✅ Análisis integral guardado en BD")
+                except Exception as e:
+                    print(f"   ⚠️ Error guardando análisis integral: {str(e)}")
+                
             except Exception as e:
-                print(f"   ⚠️ Error guardando análisis integral: {str(e)}")
-            
-        except Exception as e:
-            print(f"   ❌ Error guardando datos integrales: {str(e)}")
+                print(f"   ❌ Error guardando datos integrales: {str(e)}")
     
     def _send_comprehensive_notifications(self, analysis_result: Dict) -> bool:
         """Envía notificaciones con análisis integral"""

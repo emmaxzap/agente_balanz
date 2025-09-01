@@ -320,92 +320,92 @@ class CarteraExtractor:
            '$' in valor_actual and '$' in valor_inicial
        )
    
-   def _extract_days_from_row_improved(self, fila, ticker, textos, nominales):
-       """Extrae días de tenencia ahora que la columna DPT debería estar visible"""
-       try:
-           print(f"🔍 Extrayendo días de tenencia para {ticker} (con columna DPT configurada)...")
-           
-           # MÉTODO 1: Buscar en celdas td con clase específica para DPT
-           try:
-               # Buscar celdas que coincidan con el patrón de DPT
-               dpt_cells = fila.locator('td.text-size-4.ng-star-inserted').all()
-               
-               print(f"   📊 Celdas DPT candidatas encontradas: {len(dpt_cells)}")
-               
-               for i, cell in enumerate(dpt_cells):
-                   try:
-                       # Buscar span dentro de la celda
-                       span_element = cell.locator('span').first
-                       if span_element.count() > 0:
-                           text = span_element.text_content().strip()
-                           print(f"   🔍 Celda DPT {i}: '{text}'")
-                           
-                           if text.isdigit():
-                               days = int(text)
-                               if (1 <= days <= 999 and days != nominales):
-                                   print(f"   ✅ ÉXITO - Días desde celda DPT configurada: {days}")
-                                   return days
-                   
-                   except Exception as e:
-                       continue
-                       
-           except Exception as e:
-               print(f"   ⚠️ Error en método celdas DPT: {str(e)}")
-           
-           # MÉTODO 2: Buscar spans con números en toda la fila
-           try:
-               all_spans = fila.locator('span').all()
-               print(f"   📊 Spans totales en fila: {len(all_spans)}")
-               
-               for i, span in enumerate(all_spans):
-                   try:
-                       text = span.text_content().strip()
-                       if text.isdigit():
-                           number = int(text)
-                           if (1 <= number <= 99 and number != nominales):  # DPT típico
-                               
-                               # Verificar que no esté en contexto monetario
-                               parent_html = span.locator('xpath=..').inner_html()
-                               if '$' not in parent_html and ',' not in parent_html:
-                                   print(f"   ✅ ÉXITO - Días desde span general: {number}")
-                                   return number
-                                   
-                   except Exception as e:
-                       continue
-                       
-           except Exception as e:
-               print(f"   ⚠️ Error en método spans generales: {str(e)}")
-           
-           # MÉTODO 3: Buscar por posición esperada (última columna visible)
-           try:
-               # Ahora que DPT está configurado, debería estar en una posición específica
-               all_cells = fila.locator('td').all()
-               print(f"   📊 Total celdas en fila: {len(all_cells)}")
-               
-               # Revisar las últimas 3 celdas (DPT debería estar al final)
-               for i in range(max(0, len(all_cells) - 3), len(all_cells)):
-                   try:
-                       cell = all_cells[i]
-                       cell_text = cell.text_content().strip()
-                       print(f"   🔍 Celda {i}: '{cell_text}'")
-                       
-                       # Buscar números en la celda
-                       import re
-                       numbers = re.findall(r'\b(\d{1,2})\b', cell_text)
-                       for num_str in numbers:
-                           num = int(num_str)
-                           if 1 <= num <= 99 and num != nominales:
-                               print(f"   ✅ ÉXITO - Días desde posición final: {num}")
-                               return num
-                               
-                   except Exception as e:
-                       continue
-                       
-           except Exception as e:
-               print(f"   ⚠️ Error en método posición final: {str(e)}")
-           
-           print(f"   ❌ No se encontraron días válidos para {ticker} - usando fallback")
-           return 1
+    def _extract_days_from_row_improved(self, fila, ticker, textos, nominales):
+        """Extrae días de tenencia ahora que la columna DPT debería estar visible - CORREGIDO"""
+        try:
+            print(f"🔍 Extrayendo días de tenencia para {ticker} (con columna DPT configurada)...")
+            
+            # MÉTODO 1: CORREGIDO - Buscar directamente el span dentro de td con clase específica
+            try:
+                # SELECTOR CORREGIDO según tu HTML real
+                dpt_spans = fila.locator('td.text-size-4.ng-star-inserted span').all()
+                
+                print(f"   📊 Spans DPT encontrados: {len(dpt_spans)}")
+                
+                for i, span in enumerate(dpt_spans):
+                    try:
+                        text = span.text_content().strip()
+                        print(f"   🔍 Span DPT {i}: '{text}'")
+                        
+                        if text.isdigit():
+                            days = int(text)
+                            # Verificar que sea un valor razonable para DPT (1-999 días)
+                            # y que NO sea igual a nominales (para evitar confusión)
+                            if 1 <= days <= 999 and days != nominales:
+                                print(f"   ✅ ÉXITO - Días desde span DPT: {days}")
+                                return days
+                    
+                    except Exception as e:
+                        continue
+                        
+            except Exception as e:
+                print(f"   ⚠️ Error en método spans DPT: {str(e)}")
+            
+            # MÉTODO 2: Buscar en todas las celdas td con la clase específica
+            try:
+                dpt_cells = fila.locator('td.text-size-4.ng-star-inserted').all()
+                
+                print(f"   📊 Celdas DPT candidatas: {len(dpt_cells)}")
+                
+                for i, cell in enumerate(dpt_cells):
+                    try:
+                        # Obtener el texto completo de la celda
+                        cell_text = cell.text_content().strip()
+                        print(f"   🔍 Celda DPT {i}: '{cell_text}'")
+                        
+                        if cell_text.isdigit():
+                            days = int(cell_text)
+                            if 1 <= days <= 999 and days != nominales:
+                                print(f"   ✅ ÉXITO - Días desde celda DPT: {days}")
+                                return days
+                    
+                    except Exception as e:
+                        continue
+                        
+            except Exception as e:
+                print(f"   ⚠️ Error en método celdas DPT: {str(e)}")
+            
+            # MÉTODO 3: Fallback - buscar cualquier número que no sea nominales
+            try:
+                all_spans = fila.locator('span').all()
+                print(f"   📊 Spans totales en fila: {len(all_spans)}")
+                
+                for i, span in enumerate(all_spans):
+                    try:
+                        text = span.text_content().strip()
+                        if text.isdigit():
+                            number = int(text)
+                            # Debe ser diferente de nominales y en rango razonable
+                            if (1 <= number <= 99 and number != nominales):
+                                
+                                # Verificar que el span padre tenga clase text-size-4
+                                parent_html = span.locator('xpath=..').get_attribute('class') or ''
+                                if 'text-size-4' in parent_html:
+                                    print(f"   ✅ ÉXITO - Días desde fallback con clase correcta: {number}")
+                                    return number
+                                    
+                    except Exception as e:
+                        continue
+                        
+            except Exception as e:
+                print(f"   ⚠️ Error en método fallback: {str(e)}")
+            
+            print(f"   ❌ No se encontraron días válidos para {ticker} - usando fallback")
+            return 1
+            
+        except Exception as e:
+            print(f"   💥 ERROR CRÍTICO extrayendo días de {ticker}: {str(e)}")
+            return 1
            
        except Exception as e:
            print(f"   💥 ERROR CRÍTICO extrayendo días de {ticker}: {str(e)}")
